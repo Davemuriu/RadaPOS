@@ -24,3 +24,11 @@ class EventVendor(db.Model):
     vendor_id = db.Column(db.Integer, db.ForeignKey('vendors.id'), nullable=False)
     booth_number = db.Column(db.String(20))
     status = db.Column(db.String(20), default='approved')
+
+class Event(db.Model):
+    __tablename__ = 'events'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    location = db.Column(db.String(100))
+    # ADD THIS LINE BELOW
+    status = db.Column(db.String(20), default='active')
