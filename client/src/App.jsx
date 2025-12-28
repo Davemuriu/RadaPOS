@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // Import all pages
 import LandingPage from './pages/LandingPage';
-import AdminLogin from './pages/Admin/AdminLogin';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 
 function App() {
@@ -14,7 +13,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
 
         {/* The Admin Login screen (appears after clicking Admin on landing) */}
-        <Route path="/login/admin" element={<AdminLogin />} />
+        <Route path="/login/admin" element={<LandingPage />} />
 
         {/* The Dashboard with the sidebar and metrics */}
         <Route path="/admin-dashboard" element={<AdminDashboard />} />

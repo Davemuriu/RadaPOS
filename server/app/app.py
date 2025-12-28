@@ -1,45 +1,48 @@
 from flask import Flask, jsonify, request
-from flask_cors import CORS # This is the critical security fix
+from flask_cors import CORS # Run: pip install flask-cors
 
 app = Flask(__name__)
-CORS(app) # This tells Flask to allow your React app to access data
 
-# --- THE DATA YOUR FRONTEND IS EXPECTING ---
+# FIX: Allow React (port 5173) to talk to Flask (port 5555)
+CORS(app, resources={r"/api/*": {"origins": "http://127.0.0.1:5173"}})
 
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    # Matches the stats state in React
-    return jsonify({
-        "total_revenue": 2500000,
-        "platform_commission": 250000,
-        "active_events": 4,
-        "total_vendors": 32,
-        "pending_withdrawals": 8
-    })
+# --- MOCK DATA FOR DEMO ---
+mock_events = [
+    {"id": 1, "name": "Solfest 2025", "date": "2025-12-20", "status": "active"},
+    {"id": 2, "name": "Nairobi Tech Week", "date": "2025-11-15", "status": "pending"}
+]
+
+# --- ROUTES (Must match React API_BASE) ---
 
 @app.route('/api/events', methods=['GET'])
 def get_events():
-    # Matches the events state in React
-    return jsonify([
-        {"id": 1, "name": "SOLFEST 2025", "location": "Nairobi", "revenue": 1200000, "vendor_count": 12, "status": "active"},
-        {"id": 2, "name": "Blankets & Wine", "location": "Laureat Garden", "revenue": 850000, "vendor_count": 18, "status": "active"}
-    ])
+    return jsonify(mock_events)
+
+@app.route('/api/admin/stats', methods=['GET'])
+def get_stats():
+    # Matches the stats state in your React code
+    return jsonify({
+        "total_revenue": 1500000,
+        "platform_commission": 225000,
+        "active_events": 5,
+        "total_vendors": 42,
+        "pending_withdrawals": 8
+    })
 
 @app.route('/api/admin/users', methods=['GET'])
-def get_admin_users():
-    # Matches the Admin Users table
+def get_users():
     return jsonify([
-        {"id": 1, "username": "David Muriu", "email": "david@radapos.com", "role": "super_admin"},
-        {"id": 2, "username": "Jane Staff", "email": "jane@radapos.com", "role": "admin_manager"}
+        {"username": "David Muriu", "email": "david@radapos.com", "role": "super_admin"},
+        {"username": "Jane Doe", "email": "jane@radapos.com", "role": "admin_manager"}
     ])
 
 @app.route('/api/admin/withdrawals', methods=['GET'])
 def get_withdrawals():
-    # Matches the Financial Pipeline table
     return jsonify([
-        {"id": 1, "vendor_name": "Urban Burger", "amount": 45000, "status": "pending"},
-        {"id": 2, "vendor_name": "Artcaffe", "amount": 120000, "status": "approved"}
+        {"vendor_name": "Mama Mboga", "amount": 50000, "status": "pending"},
+        {"vendor_name": "Urban Grill", "amount": 120000, "status": "approved"}
     ])
 
 if __name__ == '__main__':
-    app.run(port=5555, debug=True)
+    # Ensure port matches React API_BASE
+    app.run(debug=True, port=5555)
