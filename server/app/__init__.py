@@ -7,6 +7,8 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 
+load_dotenv()
+
 db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
@@ -20,10 +22,14 @@ def create_app():
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
-    CORS(app) 
+    
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     from app.routes.auth_routes import auth_bp
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    from app.routes.transaction_routes import transaction_bp
+
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(transaction_bp, url_prefix='/transactions')
 
     from app import models
 
