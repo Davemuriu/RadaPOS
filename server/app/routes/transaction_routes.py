@@ -3,8 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from app import db
 from app.models.user import User, Vendor, Cashier
-
-from app.models.sale import Sale, SaleItem 
+from app.models.transaction import Sale, SaleItem
 
 transaction_bp = Blueprint("transaction", __name__)
 
