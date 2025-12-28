@@ -27,8 +27,9 @@ class EventVendor(db.Model):
 
 class Event(db.Model):
     __tablename__ = 'events'
+    __table_args__ = {'extend_existing': True}  # ADD THIS LINE HERE
+    
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     location = db.Column(db.String(100))
-    # ADD THIS LINE BELOW
     status = db.Column(db.String(20), default='active')
