@@ -1,36 +1,45 @@
+import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
 
-load_dotenv()
-
+# Initialize extensions outside the factory
 db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
-jwt = JWTManager()
 
 def create_app():
-    app = Flask(__name__)
-    app.config.from_object('config.Config')
+    # Load environment variables from .env
+    load_dotenv()
 
+    app = Flask(__name__)
+    
+    # Enable CORS so your React frontend (port 5173) can talk to this Backend (port 5000)
+    CORS(app)
+
+    # Configuration
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+    # Initialize extensions with the app instance
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
-    jwt.init_app(app)
-    
-    CORS(app, resources={r"/*": {"origins": "*"}})
 
-    from app.routes.auth_routes import auth_bp
-    from app.routes.transaction_routes import transaction_bp
+    # Import and Register Blueprints inside the factory to avoid "NameError"
+    from app.routes.event_routes import event_bp
+    from app.routes.transaction import transaction_bp
+    # from app.routes.auth_routes import auth_bp  # Uncomment when David finishes this
 
-    app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(transaction_bp, url_prefix='/transactions')
+    app.register_blueprint(event_bp, url_prefix='/api')
+    app.register_blueprint(transaction_bp, url_prefix='/api')
 
-    from app import models
+    @app.route('/')
+    def index():
+        return {"message": "RadaPOS Backend is Running!"}
 
     return app
