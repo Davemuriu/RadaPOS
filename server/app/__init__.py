@@ -1,45 +1,40 @@
-import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_bcrypt import Bcrypt
 from flask_cors import CORS
-from dotenv import load_dotenv
+from flask_bcrypt import Bcrypt  # <--- ADD THIS
+import os
 
-# Initialize extensions outside the factory
+# Initialize extensions
 db = SQLAlchemy()
 migrate = Migrate()
-bcrypt = Bcrypt()
+bcrypt = Bcrypt()  # <--- ADD THIS
 
 def create_app():
-    # Load environment variables from .env
-    load_dotenv()
-
     app = Flask(__name__)
-    
-    # Enable CORS so your React frontend (port 5173) can talk to this Backend (port 5000)
-    CORS(app)
 
-    # Configuration
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
+    # CORS CONFIGURATION
+    CORS(app, resources={r"/*": {"origins": ["http://127.0.0.1:5173", "http://localhost:5173"]}})
+
+    # DATABASE CONFIGURATION
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or \
+        'postgresql://rebecca:yourpassword@localhost/radapos'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+    app.config['SECRET_KEY'] = 'your_secret_key_here' # Needed for bcrypt/sessions
 
-    # Initialize extensions with the app instance
+    # INITIALIZE PLUGINS
     db.init_app(app)
     migrate.init_app(app, db)
-    bcrypt.init_app(app)
+    bcrypt.init_app(app)  # <--- ADD THIS
 
-    # Import and Register Blueprints inside the factory to avoid "NameError"
+    # REGISTER BLUEPRINTS
     from app.routes.event_routes import event_bp
-    from app.routes.transaction import transaction_bp
-    # from app.routes.auth_routes import auth_bp  # Uncomment when David finishes this
-
     app.register_blueprint(event_bp, url_prefix='/api')
-    app.register_blueprint(transaction_bp, url_prefix='/api')
 
-    @app.route('/')
-    def index():
-        return {"message": "RadaPOS Backend is Running!"}
+    try:
+        from app.routes.transaction import transaction_bp
+        app.register_blueprint(transaction_bp, url_prefix='/api')
+    except ImportError:
+        pass
 
     return app
