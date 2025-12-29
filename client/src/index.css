@@ -1,3 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .admin-shell { @apply flex h-screen bg-rada-void text-slate-200; }
+}

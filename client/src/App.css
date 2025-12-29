@@ -1,104 +1,271 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f4f4f9;
-  color: #333;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -------------------------
+   BASE RESET (SAFE)
+------------------------- */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: theme(fontFamily.sans);
+  }
 }
 
-.navbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+/* =========================
+   PUBLIC/LANDING STYLES
+   (converted from your old CSS)
+========================= */
+@layer components {
+  .app-public {
+    @apply min-h-screen bg-slate-100 text-slate-800;
+  }
+
+  .navbar {
+    @apply flex justify-between items-center px-8 py-4 bg-white shadow;
+  }
+
+  .landing-container {
+    @apply text-center;
+  }
+
+  .hero-section {
+    @apply px-4 py-16 text-white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .hero-section h2 {
+    @apply text-4xl font-extrabold mb-2;
+  }
+
+  .stats {
+    @apply flex justify-center gap-8 my-8 flex-wrap;
+  }
+
+  .stat-box {
+    @apply bg-white/20 p-4 rounded-lg;
+  }
+
+  .testimonials {
+    @apply px-4 py-16 bg-white;
+  }
+
+  .btn-primary {
+    @apply bg-rose-400 text-white border-0 px-5 py-2.5 rounded cursor-pointer transition;
+  }
+
+  .btn-primary:hover {
+    @apply bg-rose-500;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent border border-slate-800 px-4 py-2 rounded cursor-pointer;
+  }
+
+  .auth-container {
+    @apply flex justify-center items-center min-h-screen;
+  }
+
+  .auth-box {
+    @apply bg-white p-8 rounded shadow-md w-full max-w-md text-center;
+  }
+
+  .auth-box input,
+  .auth-box select {
+    @apply w-full px-3 py-2 my-2 border border-slate-200 rounded;
+  }
+
+  .error-msg {
+    @apply text-red-600 text-sm;
+  }
 }
 
-.landing-container {
-  text-align: center;
-}
+/* =========================
+   ADMIN DASHBOARD STYLES
+   (no inline Tailwind needed)
+========================= */
+@layer components {
+  .admin-shell {
+    @apply flex h-screen overflow-hidden font-sans italic font-medium;
+    @apply bg-rada-void text-slate-200;
+  }
 
-.hero-section {
-  padding: 4rem 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
+  .admin-sidebar {
+    @apply w-72 shrink-0 h-full flex flex-col shadow-2xl;
+    @apply bg-rada-surface border-r border-border-soft;
+  }
 
-.hero-section h2 {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-}
+  .admin-brand {
+    @apply p-10 flex items-center gap-3;
+  }
 
-.stats {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  margin: 2rem 0;
-}
+  .admin-brand-title {
+    @apply text-2xl font-black tracking-tighter text-white uppercase not-italic;
+  }
 
-.stat-box {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 1rem;
-  border-radius: 8px;
-}
+  .admin-nav {
+    @apply px-6 space-y-2 flex-grow overflow-y-auto;
+  }
 
-.testimonials {
-  padding: 4rem 1rem;
-  background: #fff;
-}
+  .admin-nav-item {
+    @apply w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200;
+  }
 
-.btn-primary {
-  background: #ff6b6b;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  font-size: 1rem;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: 0.3s;
-}
+  .admin-nav-item-active {
+    @apply bg-rada-accent/20 text-rada-accent border border-rada-accent/30 font-bold;
+  }
 
-.btn-primary:hover {
-  background: #ff5252;
-}
+  .admin-nav-item-idle {
+    @apply text-slate-500 hover:bg-rada-surface/50 hover:text-slate-300 font-medium;
+  }
 
-.btn-secondary {
-  background: transparent;
-  border: 1px solid #333;
-  padding: 8px 16px;
-  border-radius: 5px;
-  cursor: pointer;
-}
+  .admin-signout-wrap {
+    @apply p-6 mt-auto border-t border-border-soft bg-rada-surface;
+  }
 
-.auth-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-}
+  .admin-signout-btn {
+    @apply w-full flex items-center gap-3 p-4 rounded-xl transition-all;
+    @apply text-rada-danger hover:bg-rada-danger/10 font-black uppercase text-xs tracking-widest not-italic;
+  }
 
-.auth-box {
-  background: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-}
+  .admin-main {
+    @apply flex-grow p-12 overflow-y-auto h-full;
+  }
 
-.auth-box input,
-.auth-box select {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-sizing: border-box;
-}
+  .admin-header {
+    @apply flex justify-between items-center mb-10;
+  }
 
-.error-msg {
-  color: red;
-  font-size: 0.9rem;
+  .admin-title {
+    @apply text-4xl font-black text-white tracking-tighter uppercase;
+    @apply underline decoration-rada-accent/30 underline-offset-8;
+  }
+
+  .admin-search-wrap {
+    @apply relative;
+  }
+
+  .admin-search-icon {
+    @apply absolute left-4 top-1/2 -translate-y-1/2 text-slate-500;
+  }
+
+  .admin-search-input {
+    @apply bg-rada-surface border border-border-soft rounded-xl;
+    @apply py-2 pl-12 pr-4 text-xs font-bold outline-none italic w-64;
+    @apply focus:ring-1 focus:ring-rada-accent;
+  }
+
+  .admin-filters {
+    @apply flex flex-wrap gap-4 mb-10 p-6 items-center shadow-xl rounded-2xl;
+    @apply bg-rada-surface border border-border-soft;
+  }
+
+  .admin-filter-label {
+    @apply flex items-center gap-2 text-rada-accent font-black text-[10px] uppercase italic mr-4 tracking-widest;
+  }
+
+  .admin-select {
+    @apply bg-rada-void border border-border-soft rounded-xl px-4 py-2;
+    @apply text-xs font-bold outline-none cursor-pointer;
+  }
+
+  .admin-card {
+    @apply bg-rada-surface border border-border-soft rounded-rada overflow-hidden shadow-2xl;
+  }
+
+  .admin-card-header {
+    @apply p-10 border-b border-border-soft flex justify-between items-center;
+  }
+
+  .admin-card-title {
+    @apply text-2xl font-black text-white uppercase tracking-tighter;
+  }
+
+  .btn-admin-primary {
+    @apply bg-rada-accent text-white shadow-lg hover:opacity-90;
+    @apply px-6 py-3 rounded-2xl text-[11px] font-black uppercase;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-admin-warning {
+    @apply bg-rada-warning text-white shadow-lg hover:opacity-90;
+    @apply px-5 py-2.5 rounded-xl text-[10px] font-black uppercase;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-admin-muted {
+    @apply bg-slate-700 text-slate-400 cursor-not-allowed;
+    @apply px-6 py-3 rounded-2xl text-[11px] font-black uppercase shadow-lg;
+  }
+
+  .admin-table {
+    @apply w-full text-left;
+  }
+
+  .admin-thead {
+    @apply bg-rada-void text-slate-500 text-[11px] font-black uppercase tracking-[0.2em];
+    @apply border-b border-border-soft;
+  }
+
+  .admin-th {
+    @apply p-8;
+  }
+
+  .admin-td {
+    @apply p-8;
+  }
+
+  .admin-row {
+    @apply transition;
+  }
+
+  .admin-row:hover {
+    @apply bg-rada-void/50;
+  }
+
+  .admin-pill-success {
+    @apply bg-rada-success/10 text-rada-success border border-rada-success/20;
+    @apply px-4 py-1.5 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-2;
+  }
+
+  .admin-pill-warning {
+    @apply bg-rada-warning/10 text-rada-warning border border-rada-warning/20;
+    @apply px-4 py-1.5 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-2;
+  }
+
+  .admin-dot {
+    @apply w-1.5 h-1.5 rounded-full;
+  }
+
+  .admin-modal-backdrop {
+    @apply fixed inset-0 z-50 flex items-center justify-center;
+    @apply bg-black/80 backdrop-blur-sm;
+  }
+
+  .admin-modal {
+    @apply bg-rada-surface border border-border-soft w-full max-w-lg;
+    @apply rounded-rada p-12 shadow-2xl relative;
+  }
+
+  .admin-modal-close {
+    @apply absolute top-8 right-8 text-slate-500 hover:text-white;
+  }
+
+  .admin-modal-title {
+    @apply text-2xl font-black text-white tracking-tighter uppercase mb-8;
+    @apply underline decoration-rada-accent/30 underline-offset-8;
+  }
+
+  .admin-field-label {
+    @apply text-[10px] uppercase font-black text-slate-500 tracking-widest ml-1;
+  }
+
+  .admin-input {
+    @apply w-full bg-rada-void border border-border-soft rounded-2xl p-5;
+    @apply outline-none font-bold text-white shadow-inner;
+  }
 }
