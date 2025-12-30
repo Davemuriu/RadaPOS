@@ -8,6 +8,26 @@ from app.utils.rbac import role_required
 
 transaction_bp = Blueprint("transaction", __name__)
 
+
+# 1. MPESA PAYMENT TRIGGER
+
+@transaction_bp.route('/stk-push', methods=['POST'])
+@jwt_required()
+def trigger_stk_push():
+    data = request.get_json()
+    phone_number = data.get('phone_number')
+    amount = data.get('amount')
+    
+    if not phone_number or not amount:
+        return jsonify({"error": "Phone number and amount are required"}), 400
+
+    response = mpesa.stk_push(phone_number, amount)
+    return jsonify(response)
+
+
+
+# 2. RECORD SALE
+
 @transaction_bp.route("/checkout", methods=["POST"])
 @jwt_required()
 @role_required("VENDOR", "CASHIER")
