@@ -28,3 +28,18 @@ class SaleItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Float, nullable=False)
     subtotal = db.Column(db.Float, nullable=False)
+
+class MpesaPayment(db.Model):
+    __tablename__ = 'mpesa_payments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    merchant_request_id = db.Column(db.String(50), nullable=False)
+    checkout_request_id = db.Column(db.String(50), nullable=False)
+    result_code = db.Column(db.Integer, nullable=False)
+    result_desc = db.Column(db.String(255))
+    amount = db.Column(db.Float)
+    mpesa_receipt_number = db.Column(db.String(20))
+    phone_number = db.Column(db.String(15))
+    transaction_date = db.Column(db.String(20))
+    is_used = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
