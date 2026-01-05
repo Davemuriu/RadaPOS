@@ -1,43 +1,50 @@
 import React from 'react';
 import AdminShell from './components/AdminShell';
-import AdminStatCard from './components/AdminStatCard';
 
 const AdminReports = () => {
   return (
-    <AdminShell title="System Reports">
-      {/* High Level Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-        <AdminStatCard label="Monthly Growth" value="+24.8%" />
-        <AdminStatCard label="Payouts Pending" value="$3,200" />
-      </div>
-
-      <div className="space-y-4">
-        <h3 className="admin-field-label ml-2">Available Downloads</h3>
+    <AdminShell title="POS Terminal Reports">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        {/* Report Download Cards */}
-        <div className="admin-card p-8 flex items-center justify-between group hover:border-rada-accent/50 transition-colors">
-          <div>
-            <h4 className="text-white font-black uppercase tracking-tighter text-xl">Financial Summary</h4>
-            <p className="text-xs text-slate-500 italic mt-1">Full breakdown of ticket sales, vendor fees, and tax.</p>
+        {/* Terminal Summary Card */}
+        <div className="admin-card">
+          <div className="admin-card-header bg-rada-void/50">
+            <h3 className="admin-card-title text-sm tracking-widest">Active Session: Z-REPORT</h3>
           </div>
-          <button className="btn-admin-primary">Generate PDF</button>
+          <div className="p-8 space-y-4">
+            <div className="flex justify-between border-b border-border-soft pb-2">
+              <span className="admin-field-label">Gross Sales</span>
+              <span className="text-white font-mono">$8,450.20</span>
+            </div>
+            <div className="flex justify-between border-b border-border-soft pb-2">
+              <span className="admin-field-label">Discounts</span>
+              <span className="text-rada-danger font-mono">-$210.00</span>
+            </div>
+            <div className="flex justify-between pt-4">
+              <span className="text-rada-accent font-black uppercase">Net Total</span>
+              <span className="text-2xl text-white font-black font-mono">$8,240.20</span>
+            </div>
+            <button className="btn-admin-primary w-full mt-6 py-4">PRINT END OF DAY REPORT</button>
+          </div>
         </div>
 
-        <div className="admin-card p-8 flex items-center justify-between group hover:border-rada-accent/50 transition-colors">
-          <div>
-            <h4 className="text-white font-black uppercase tracking-tighter text-xl">User Activity Log</h4>
-            <p className="text-xs text-slate-500 italic mt-1">Export all login attempts and administrative actions.</p>
+        {/* Historical Logs Card */}
+        <div className="admin-card">
+          <div className="admin-card-header">
+            <h3 className="admin-card-title text-sm italic">Historical Exports</h3>
           </div>
-          <button className="btn-admin-warning">Export CSV</button>
+          <div className="p-8 space-y-4">
+            <div className="flex items-center justify-between p-4 bg-rada-void rounded-lg border border-border-soft">
+              <span className="text-xs font-black text-white">MONTHLY_TAX_LOG.CSV</span>
+              <button className="text-rada-accent text-[10px] font-bold underline">DOWNLOAD</button>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-rada-void rounded-lg border border-border-soft">
+              <span className="text-xs font-black text-white">VENDOR_PAYOUTS_JAN.PDF</span>
+              <button className="text-rada-accent text-[10px] font-bold underline">DOWNLOAD</button>
+            </div>
+          </div>
         </div>
 
-        <div className="admin-card p-8 flex items-center justify-between group hover:border-rada-accent/50 transition-colors">
-          <div>
-            <h4 className="text-white font-black uppercase tracking-tighter text-xl">Vendor Performance</h4>
-            <p className="text-xs text-slate-500 italic mt-1">Rankings based on user feedback and event success rate.</p>
-          </div>
-          <button className="btn-admin-primary">Generate PDF</button>
-        </div>
       </div>
     </AdminShell>
   );

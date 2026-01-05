@@ -3,42 +3,36 @@ import AdminShell from './components/AdminShell';
 import AdminTable from './components/AdminTable';
 
 const AdminVendors = () => {
-  const headers = ['Business Name', 'Category', 'Rating', 'Status', 'Actions'];
+  const headers = ['ID', 'Vendor Name', 'Category', 'Balance', 'Status', 'Quick Action'];
 
   return (
-    <AdminShell title="Vendors">
-      <div className="admin-filters">
-        <span className="admin-filter-label">Quick Search:</span>
-        <select className="admin-select">
-          <option>All Categories</option>
-          <option>Catering</option>
-          <option>Security</option>
-          <option>Audio/Visual</option>
-        </select>
-        <button className="btn-admin-primary ml-auto">Add New Vendor</button>
+    <AdminShell title="POS Vendor Manager">
+      {/* Search & Filter Bar - POS Density */}
+      <div className="admin-filters flex items-center bg-rada-surface p-4 rounded-xl border border-border-soft mb-6">
+        <input 
+          className="admin-input flex-grow max-w-xs" 
+          placeholder="SCAN OR TYPE VENDOR..." 
+        />
+        <div className="ml-auto flex gap-2">
+          <button className="btn-admin-primary px-4 py-2">NEW VENDOR</button>
+          <button className="btn-admin-muted px-4 py-2 text-white">BULK IMPORT</button>
+        </div>
       </div>
 
       <AdminTable headers={headers}>
-        <tr className="admin-row">
-          <td className="admin-td text-white font-bold">Starlight Catering</td>
-          <td className="admin-td italic">Food & Beverage</td>
-          <td className="admin-td text-rada-accent">★★★★★</td>
+        <tr className="admin-row border-b border-border-soft/30 hover:bg-rada-void">
+          <td className="admin-td font-mono text-rada-accent">#V-902</td>
+          <td className="admin-td font-black text-white uppercase">Star Catering</td>
+          <td className="admin-td italic text-xs">Food/Bev</td>
+          <td className="admin-td font-mono">$1,250.00</td>
           <td className="admin-td">
-            <span className="admin-pill-success">Verified</span>
+            <span className="admin-pill-success">OPEN</span>
           </td>
           <td className="admin-td">
-            <button className="btn-admin-warning">Contact</button>
-          </td>
-        </tr>
-        <tr className="admin-row">
-          <td className="admin-td text-white font-bold">SafeGuard Sec</td>
-          <td className="admin-td italic">Security</td>
-          <td className="admin-td text-rada-accent">★★★★☆</td>
-          <td className="admin-td">
-            <span className="admin-pill-warning">Reviewing</span>
-          </td>
-          <td className="admin-td">
-            <button className="btn-admin-warning">Contact</button>
+            <div className="flex gap-1">
+              <button className="bg-rada-accent text-white p-2 rounded text-[10px] font-black">PAY</button>
+              <button className="bg-slate-700 text-white p-2 rounded text-[10px] font-black">EDIT</button>
+            </div>
           </td>
         </tr>
       </AdminTable>
