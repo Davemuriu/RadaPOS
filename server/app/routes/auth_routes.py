@@ -4,15 +4,14 @@ from flask_jwt_extended import create_access_token
 
 from app.extensions import db
 from app.models.user import User
-from app.constants.enums import Roles
 
 auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.post("/register")
 def register():
     """
-    Public registration => vendor only.
-    Admin users must be created by Administrator via /api/admin/users
+    Public registration => Vendor only.
+    Admin users should be created by Administrator.
     """
     data = request.get_json() or {}
     name = data.get("name")
@@ -20,12 +19,12 @@ def register():
     password = data.get("password")
 
     if not name or not email or not password:
-        return jsonify({"error": "Missing fields"}), 400
+        return jsonify({"error": "name, email, password are required"}), 400
 
     if User.query.filter_by(email=email).first():
         return jsonify({"error": "Email already exists"}), 409
 
-    user = User(name=name, email=email, role=Roles.VENDOR)
+    user = User(name=name, email=email, role="vendor")
     user.set_password(password)
 
     db.session.add(user)
@@ -41,7 +40,7 @@ def login():
     password = data.get("password")
 
     if not email or not password:
-        return jsonify({"error": "Missing fields"}), 400
+        return jsonify({"error": "email and password are required"}), 400
 
     user = User.query.filter_by(email=email).first()
     if not user or not user.check_password(password):
@@ -55,7 +54,7 @@ def login():
         additional_claims={
             "role": user.role,
             "admin_role": user.admin_role,
-            "email": user.email
+            "email": user.email,
         }
     )
 
