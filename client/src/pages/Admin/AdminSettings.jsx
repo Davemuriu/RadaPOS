@@ -1,5 +1,5 @@
 import React from 'react';
-import AdminShell from './components/AdminShell';
+import AdminShell from './AdminShell';
 
 const AdminSettings = () => (
   <AdminShell title="Terminal Configuration">

@@ -1,6 +1,6 @@
 import React from 'react';
-import AdminShell from './components/AdminShell';
-import AdminTable from './components/AdminTable';
+import AdminShell from './AdminShell';
+
 
 const AdminEvents = () => (
   <AdminShell title="Session Manager">
