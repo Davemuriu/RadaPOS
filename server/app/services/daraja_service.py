@@ -2,7 +2,7 @@ import base64
 import requests
 from datetime import datetime
 
-from app.config import Config
+from config import Config
 
 class DarajaService:
 
