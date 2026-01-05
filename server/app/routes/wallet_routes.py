@@ -3,7 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app import db
 from app.models.wallet import Wallet, Withdrawal, Settlement
-from app.models.vendor import Vendor
+from app.models.user import Vendor
+from datetime import datetime
 from app.utils.rbac import role_required
 from app.services.daraja_service import DarajaService
 wallet_bp = Blueprint("wallet", __name__)

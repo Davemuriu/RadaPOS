@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
 from app.extensions import db
-from app.models.sale import Sale
+from app.models.transaction import Sale
 from app.utils.rbac import role_required
 
 transaction_bp = Blueprint("transaction", __name__)
