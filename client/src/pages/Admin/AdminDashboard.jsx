@@ -25,7 +25,7 @@ import {
   SettingsPanel,
   CreateEventModal,
   CreateUserModal,
-} from "./AdminDashboard.components";
+} from "./AdminShell.jsx";
 
 const ROLE = {
   SUPER_ADMIN: "super_admin",
