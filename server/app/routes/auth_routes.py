@@ -1,56 +1,62 @@
-from flask import Blueprint, request
-from flask_jwt_extended import (
-    create_access_token,
-    jwt_required,
-    get_jwt_identity
-)
-from app.models.user import User
+# app/routes/auth_routes.py
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import create_access_token
+
 from app.extensions import db
-from app.utils.security import verify_password, hash_password
-from app.utils.rbac import role_required
+from app.models.user import User
+from app.constants.enums import Roles
 
 auth_bp = Blueprint("auth", __name__)
 
-@auth_bp.route("/login", methods=["POST"])
-def login():
-    data = request.get_json()
-
-    user = User.query.filter_by(email=data.get("email")).first()
-    if not user or not verify_password(data.get("password"), user.password_hash):
-        return {"msg": "Invalid credentials"}, 401
-
-    token = create_access_token(
-        identity=user.id,
-        additional_claims={"role": user.role}
-    )
-
-    return {
-        "access_token": token,
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "role": user.role
-        }
-    }, 200
-
-
-@auth_bp.route("/register", methods=["POST"])
-@jwt_required()
-@role_required("ADMIN")
+@auth_bp.post("/register")
 def register():
-    data = request.get_json()
+    """
+    Public registration => vendor only.
+    Admin users must be created by Administrator via /api/admin/users
+    """
+    data = request.get_json() or {}
+    name = data.get("name")
+    email = data.get("email")
+    password = data.get("password")
 
-    if User.query.filter_by(email=data.get("email")).first():
-        return {"msg": "User already exists"}, 409
+    if not name or not email or not password:
+        return jsonify({"error": "Missing fields"}), 400
 
-    user = User(
-        name=data["name"],
-        email=data["email"],
-        password_hash=hash_password(data["password"]),
-        role=data["role"]
-    )
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "Email already exists"}), 409
+
+    user = User(name=name, email=email, role=Roles.VENDOR)
+    user.set_password(password)
 
     db.session.add(user)
     db.session.commit()
 
-    return {"msg": "User created"}, 201
+    return jsonify({"message": "Registered", "user": user.to_dict()}), 201
+
+
+@auth_bp.post("/login")
+def login():
+    data = request.get_json() or {}
+    email = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"error": "Missing fields"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    if not user.is_active:
+        return jsonify({"error": "Account disabled"}), 403
+
+    token = create_access_token(
+        identity=str(user.id),
+        additional_claims={
+            "role": user.role,
+            "admin_role": user.admin_role,
+            "email": user.email
+        }
+    )
+
+    return jsonify({"access_token": token, "user": user.to_dict()}), 200

@@ -1,39 +1,35 @@
+# app/routes/event_routes.py
 from flask import Blueprint, request, jsonify
-from app import db
+from flask_jwt_extended import get_jwt_identity
+
+from app.extensions import db
+from app.utils.decorators import admin_role_required
 from app.models.event import Event
+from app.constants.enums import AdminRoles
 
-event_bp = Blueprint('event_bp', __name__)
+event_bp = Blueprint("events", __name__)
 
-# READ: Get all events
-@event_bp.route('/events', methods=['GET'])
-def get_events():
-    events = Event.query.all()
-    return jsonify([{
-        "id": e.id, 
-        "name": e.name, 
-        "location": e.location, 
-        "status": e.status
-    } for e in events]), 200
+@event_bp.get("")
+def list_events():
+    events = Event.query.filter_by(archived=False).order_by(Event.created_at.desc()).all()
+    return jsonify([e.to_dict() for e in events]), 200
 
-# CREATE: Add a new event
-@event_bp.route('/events', methods=['POST'])
+
+@event_bp.post("")
+@admin_role_required(AdminRoles.MANAGER, AdminRoles.ADMINISTRATOR)
 def create_event():
-    data = request.get_json()
-    new_event = Event(
-        name=data.get('name'), 
-        location=data.get('location'),
-        status='active'
-    )
-    db.session.add(new_event)
-    db.session.commit()
-    return jsonify({"message": "Event created successfully!"}), 201
+    data = request.get_json() or {}
+    name = data.get("name")
+    if not name:
+        return jsonify({"error": "Event name is required"}), 400
 
-# UPDATE: Deactivate an event (PATCH)
-@event_bp.route('/events/<int:id>', methods=['PATCH'])
-def update_event(id):
-    event = Event.query.get_or_404(id)
-    data = request.get_json()
-    if 'status' in data:
-        event.status = data['status']
+    event = Event(
+        name=name,
+        location=data.get("location"),
+        is_active=True,
+        archived=False,
+        created_by=int(get_jwt_identity())
+    )
+    db.session.add(event)
     db.session.commit()
-    return jsonify({"message": f"Event {id} updated to {event.status}"}), 200
+    return jsonify(event.to_dict()), 201
