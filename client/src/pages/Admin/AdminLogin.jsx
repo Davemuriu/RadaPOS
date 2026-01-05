@@ -5,16 +5,39 @@ export default function AdminLogin({ onLogin }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+    setLoading(true);
 
-    onLogin({
-      email,
-      role: "SUPER_ADMIN",
-    });
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    navigate("/admin/dashboard", { replace: true });
+      if (!response.ok) {
+        throw new Error("Invalid email or password");
+      }
+
+      const data = await response.json();
+
+      // Save logged-in admin user in App state
+      onLogin(data.user);
+
+      // Redirect to admin dashboard
+      navigate("/admin/dashboard", { replace: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -25,11 +48,18 @@ export default function AdminLogin({ onLogin }) {
       >
         <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
 
+        {error && (
+          <div className="mb-4 text-sm text-rada-danger">
+            {error}
+          </div>
+        )}
+
         <input
           className="admin-input mb-4"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          required
         />
 
         <input
@@ -38,10 +68,14 @@ export default function AdminLogin({ onLogin }) {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
         />
 
-        <button className="btn-admin-primary w-full">
-          Login
+        <button
+          className="btn-admin-primary w-full"
+          disabled={loading}
+        >
+          {loading ? "Logging in..." : "Login"}
         </button>
       </form>
     </div>
