@@ -5,82 +5,123 @@ from app.models.user import User
 from app.models.vendor import Vendor
 from app.models.package import Package
 
-app = create_app()
 
-with app.app_context():
-    print("🌱 Seeding database...")
+def get_or_create_user(*, name: str, email: str, role: str, admin_role: str | None = None, password: str | None = None):
+    user = User.query.filter_by(email=email).first()
+    if user:
+        return user, False
 
-    # DEV ONLY: resets tables
-    db.drop_all()
-    db.create_all()
-
-    # --- Admin roles ---
-    admin = User(
-        name="Platform Administrator",
-        email="admin@radapos.com",
-        role="admin",
-        admin_role="administrator",
+    user = User(
+        name=name,
+        email=email,
+        role=role,
+        admin_role=admin_role,
         is_active=True,
     )
-    admin.set_password("admin123")
+    if password:
+        user.set_password(password)
 
-    manager = User(
-        name="Platform Manager",
-        email="manager@radapos.com",
-        role="admin",
-        admin_role="manager",
-        is_active=True,
-    )
-    manager.set_password("manager123")
-
-    accountant = User(
-        name="Platform Accountant",
-        email="accountant@radapos.com",
-        role="admin",
-        admin_role="accountant",
-        is_active=True,
-    )
-    accountant.set_password("accountant123")
-
-    db.session.add_all([admin, manager, accountant])
+    db.session.add(user)
     db.session.commit()
+    return user, True
 
-    # --- Package (approved) ---
+
+def get_or_create_package(*, name: str, created_by: int, approved_by: int):
+    pkg = Package.query.filter_by(name=name).first()
+    if pkg:
+        return pkg, False
+
     pkg = Package(
-        name="Silver",
+        name=name,
         description="Basic tier",
         price=1000,
         currency="KES",
         commission_percent=2.50,
         status="APPROVED",
-        created_by=accountant.id,
-        approved_by=admin.id,
+        created_by=created_by,
+        approved_by=approved_by,
     )
     db.session.add(pkg)
     db.session.commit()
+    return pkg, True
 
-    # --- Vendor user + vendor profile ---
-    vendor_user = User(
-        name="Demo Vendor",
-        email="vendor@radapos.com",
-        role="vendor",
-        is_active=True,
-    )
-    vendor_user.set_password("vendor123")
-    db.session.add(vendor_user)
-    db.session.commit()
+
+def get_or_create_vendor(*, business_name: str, owner_id: int, package_id: int, submitted_by: int, approved_by: int):
+    vendor = Vendor.query.filter_by(owner_id=owner_id).first()
+    if vendor:
+        return vendor, False
 
     vendor = Vendor(
-        business_name="Demo Foods",
+        business_name=business_name,
         phone="0700000000",
         kra_pin="A000000000Z",
-        package_id=pkg.id,
+        package_id=package_id,
         status="APPROVED",
-        owner_id=vendor_user.id,
-        submitted_by=manager.id,
-        approved_by=admin.id,
+        owner_id=owner_id,
+        submitted_by=submitted_by,
+        approved_by=approved_by,
     )
     db.session.add(vendor)
     db.session.commit()
+    return vendor, True
+
+
+app = create_app()
+
+with app.app_context():
+    print("🌱 Seeding database (safe mode)...")
+
+    # ✅ 1) Create INITIAL SUPER ADMIN (Rebecca) if missing
+    super_admin, created = get_or_create_user(
+        name="Rebecca Vugutsa (Super Admin)",
+        email="bekivugz@gmail.com",
+        role="admin",
+        admin_role="administrator",
+        password="admin123",
+    )
+    print("✅ Super Admin:", super_admin.email, "(created)" if created else "(exists)")
+
+    # ✅ 2) OPTIONAL: Create demo Manager + Accountant ONLY if you want demo data
+    manager, m_created = get_or_create_user(
+        name="Platform Manager",
+        email="manager",
+        role="admin",
+        admin_role="manager",
+        password="manager123",
+    )
+    accountant, a_created = get_or_create_user(
+        name="Platform Accountant",
+        email="accountant",
+        role="admin",
+        admin_role="accountant",
+        password="accountant123",
+    )
+    print("✅ Manager:", manager.email, "(created)" if m_created else "(exists)")
+    print("✅ Accountant:", accountant.email, "(created)" if a_created else "(exists)")
+
+    # ✅ 3) OPTIONAL: Create a demo package + vendor (safe)
+    pkg, p_created = get_or_create_package(
+        name="Silver",
+        created_by=accountant.id,
+        approved_by=super_admin.id,
+    )
+    print("✅ Package:", pkg.name, "(created)" if p_created else "(exists)")
+
+    vendor_user, vu_created = get_or_create_user(
+        name="Demo Vendor",
+        email="vendor",
+        role="vendor",
+        password="vendor123",
+    )
+    print("✅ Vendor user:", vendor_user.email, "(created)" if vu_created else "(exists)")
+
+    vendor, v_created = get_or_create_vendor(
+        business_name="Demo Foods",
+        owner_id=vendor_user.id,
+        package_id=pkg.id,
+        submitted_by=manager.id,
+        approved_by=super_admin.id,
+    )
+    print("✅ Vendor profile:", vendor.business_name, "(created)" if v_created else "(exists)")
 
     print("✅ Done seeding.")
