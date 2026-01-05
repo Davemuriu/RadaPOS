@@ -1,69 +1,80 @@
-import React from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-function StatCard({ label, value, trend }) {
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const stored = localStorage.getItem("user");
+
+    if (!token || !stored) {
+      navigate("/admin/login");
+      return;
+    }
+
+    try {
+      setUser(JSON.parse(stored));
+    } catch {
+      navigate("/admin/login");
+    }
+  }, [navigate]);
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/");
+  };
+
   return (
-    <div className="admin-card p-5">
-      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 font-black">
-        {label}
-      </div>
-      <div className="mt-2 text-2xl font-black text-white">{value}</div>
-      {trend ? (
-        <div className="mt-2 text-[11px] font-black text-rada-success tracking-[0.2em]">
-          {trend}
+    <div className="min-h-screen bg-rada-void text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+            <p className="text-slate-400 mt-1">
+              Welcome {user?.name || "Admin"}{" "}
+              <span className="text-slate-500">
+                ({user?.admin_role || "admin"})
+              </span>
+            </p>
+          </div>
+
+          <button
+            onClick={logout}
+            className="rounded-xl border border-border-soft px-4 py-2 text-sm hover:bg-white/5"
+          >
+            Logout
+          </button>
         </div>
-      ) : null}
+
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card title="Total Revenue (Commission)" value="—" hint="Coming next" />
+          <Card title="Vendors Pending Approval" value="—" hint="Coming next" />
+          <Card title="Payouts Pending Approval" value="—" hint="Coming next" />
+        </div>
+
+        <div className="mt-10 rounded-2xl bg-rada-surface border border-border-soft p-6">
+          <h2 className="text-lg font-semibold">Next steps</h2>
+          <ul className="mt-3 space-y-2 text-sm text-slate-300 list-disc list-inside">
+            <li>Protect routes by role/admin_role (RBAC)</li>
+            <li>Create admin users (Administrator only)</li>
+            <li>Approval workflows (vendors, packages, payouts)</li>
+            <li>Audit trail viewer</li>
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
 
-export default function AdminDashboard() {
+function Card({ title, value, hint }) {
   return (
-    <div>
-      <h1 className="admin-title mb-8">Terminal Overview</h1>
-
-      {/* POS Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Net Sales" value="$14,250.00" trend="LIVE" />
-        <StatCard label="Transactions" value="842" />
-        <StatCard label="Avg Ticket" value="$16.92" />
-        <StatCard label="Active Terminals" value="06" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activity Feed */}
-        <div className="lg:col-span-2 admin-card p-6">
-          <h3 className="text-[11px] uppercase tracking-[0.2em] text-slate-500 font-black mb-4">
-            Live Transaction Stream
-          </h3>
-
-          <div className="space-y-2 font-mono text-[11px]">
-            <div className="flex justify-between p-2 bg-rada-void/50 border-l-2 border-rada-success">
-              <span className="text-white">#TRX-9921 - Completed</span>
-              <span className="text-rada-success">+$45.00</span>
-            </div>
-
-            <div className="flex justify-between p-2 bg-rada-void/50 border-l-2 border-rada-warning">
-              <span className="text-white">#TRX-9920 - Refunded</span>
-              <span className="text-rada-danger">-$12.50</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="admin-card p-6 space-y-3">
-          <h3 className="text-[11px] uppercase tracking-[0.2em] text-slate-500 font-black mb-4">
-            System Actions
-          </h3>
-
-          <button className="btn-admin-primary w-full text-left py-4 px-6 flex justify-between">
-            <span>OPEN DRAWER</span> <span>F1</span>
-          </button>
-
-          <button className="btn-admin-primary w-full text-left py-4 px-6 flex justify-between opacity-90">
-            <span>PRINT X-REPORT</span> <span>F2</span>
-          </button>
-        </div>
-      </div>
+    <div className="rounded-2xl bg-rada-surface border border-border-soft p-6">
+      <p className="text-sm text-slate-400">{title}</p>
+      <p className="text-3xl font-bold mt-2">{value}</p>
+      <p className="text-xs text-slate-500 mt-2">{hint}</p>
     </div>
   );
 }

@@ -1,81 +1,99 @@
-import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-export default function AdminLogin({ onLogin }) {
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5555";
+
+export default function AdminLogin() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+  const [email, setEmail] = useState("bekivugz@gmail.com");
+  const [password, setPassword] = useState("admin123");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setError(null);
+    setError("");
     setLoading(true);
 
     try {
-      const response = await fetch("/api/login", {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      if (!response.ok) {
-        throw new Error("Invalid email or password");
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error || "Login failed");
+        setLoading(false);
+        return;
       }
 
-      const data = await response.json();
+      localStorage.setItem("token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
 
-      // Save logged-in admin user in App state
-      onLogin(data.user);
+      // you can also store role/admin_role if you want:
+      // localStorage.setItem("role", data.user.role);
 
-      // Redirect to admin dashboard
-      navigate("/admin/dashboard", { replace: true });
+      navigate("/admin/dashboard");
     } catch (err) {
-      setError(err.message);
+      setError("Backend not reachable. Confirm Flask is running on port 5555.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-rada-void text-white">
+    <div className="min-h-screen flex items-center justify-center bg-rada-void text-white px-4">
       <form
-        onSubmit={handleSubmit}
-        className="bg-rada-surface p-8 rounded-xl w-96"
+        onSubmit={handleLogin}
+        className="w-full max-w-md bg-rada-surface p-8 rounded-rada shadow-lg border border-border-soft"
       >
-        <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
+        <h1 className="text-2xl font-bold mb-2">Admin Login</h1>
+        <p className="text-sm text-slate-400 mb-6">
+          Sign in to manage events, vendors, packages and approvals.
+        </p>
 
         {error && (
-          <div className="mb-4 text-sm text-rada-danger">
+          <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-red-300 text-sm">
             {error}
           </div>
         )}
 
+        <label className="text-sm text-slate-300">Email</label>
         <input
-          className="admin-input mb-4"
-          placeholder="Email"
+          className="mt-2 mb-4 w-full rounded-xl bg-black/30 border border-border-soft px-4 py-3 outline-none focus:ring-2 focus:ring-rada-accent/40"
+          type="text"
+          placeholder="bekivugz@gmail.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
+          autoComplete="username"
         />
 
+        <label className="text-sm text-slate-300">Password</label>
         <input
+          className="mt-2 mb-6 w-full rounded-xl bg-black/30 border border-border-soft px-4 py-3 outline-none focus:ring-2 focus:ring-rada-accent/40"
           type="password"
-          className="admin-input mb-6"
-          placeholder="Password"
+          placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          required
+          autoComplete="current-password"
         />
 
         <button
-          className="btn-admin-primary w-full"
           disabled={loading}
+          className="w-full rounded-xl bg-rada-accent py-3 font-semibold hover:opacity-90 disabled:opacity-60"
         >
-          {loading ? "Logging in..." : "Login"}
+          {loading ? "Signing in..." : "Login"}
+        </button>
+
+        <button
+          type="button"
+          className="w-full mt-3 rounded-xl border border-border-soft py-3 text-sm text-slate-300 hover:bg-white/5"
+          onClick={() => navigate("/")}
+        >
+          Back
         </button>
       </form>
     </div>
