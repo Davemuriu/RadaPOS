@@ -6,9 +6,6 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-
-    // OPTIONAL but recommended:
-    // If your frontend calls /api/... it will be forwarded to Flask on 5555
     proxy: {
       "/api": {
         target: "http://localhost:5555",
