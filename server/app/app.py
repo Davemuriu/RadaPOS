@@ -1,24 +1,23 @@
 from flask import Flask, jsonify, request
-from flask_cors import CORS # Run: pip install flask-cors
-from flask import Flask
+from flask_cors import CORS 
+# Removed the duplicate Flask import for cleanliness
 from server.app.config import Config
 
+# INITIALIZE ONLY ONCE
 app = Flask(__name__)
 app.config.from_object(Config)
 
+# FIX: CORS allows your Vite frontend to communicate with this backend
+# Using a list allows for both localhost and the IP address
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
 
-app = Flask(__name__)
-
-# FIX: Allow React (port 5173) to talk to Flask (port 5555)
-CORS(app, resources={r"/api/*": {"origins": "http://127.0.0.1:5173"}})
-
-# --- MOCK DATA FOR DEMO ---
+# --- MOCK DATA ---
 mock_events = [
     {"id": 1, "name": "Solfest 2025", "date": "2025-12-20", "status": "active"},
     {"id": 2, "name": "Nairobi Tech Week", "date": "2025-11-15", "status": "pending"}
 ]
 
-# --- ROUTES (Must match React API_BASE) ---
+# --- ROUTES ---
 
 @app.route('/api/events', methods=['GET'])
 def get_events():
@@ -26,7 +25,6 @@ def get_events():
 
 @app.route('/api/admin/stats', methods=['GET'])
 def get_stats():
-    # Matches the stats state in your React code
     return jsonify({
         "total_revenue": 1500000,
         "platform_commission": 225000,
@@ -50,5 +48,5 @@ def get_withdrawals():
     ])
 
 if __name__ == '__main__':
-    # Ensure port matches React API_BASE
+    # Running on port 5555 to match your Vite proxy
     app.run(debug=True, port=5555)
