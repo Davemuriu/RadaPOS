@@ -1,18 +1,9 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from dotenv import load_dotenv
-import os
+from app.extensions import db, migrate, bcrypt, jwt
 
 load_dotenv()
-
-db = SQLAlchemy()
-migrate = Migrate()
-bcrypt = Bcrypt()
-jwt = JWTManager()
 
 def create_app():
     app = Flask(__name__)
@@ -23,7 +14,7 @@ def create_app():
     bcrypt.init_app(app)
     jwt.init_app(app)
     
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
     from app.routes.auth_routes import auth_bp
     from app.routes.transaction_routes import transaction_bp

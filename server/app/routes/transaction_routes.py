@@ -1,15 +1,11 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
-
-from app.extensions import db
-from app.models.sale import Sale
-from app.utils.rbac import role_required
+from app.utils.mpesa import mpesa
+from app import db
+from app.models.transaction import Sale, SaleItem, MpesaPayment
 
 transaction_bp = Blueprint("transaction", __name__)
-
-
-# 1. MPESA PAYMENT TRIGGER
 
 @transaction_bp.route('/stk-push', methods=['POST'])
 @jwt_required()
@@ -22,29 +18,28 @@ def trigger_stk_push():
         return jsonify({"error": "Phone number and amount are required"}), 400
 
     response = mpesa.stk_push(phone_number, amount)
-    return jsonify(response)
+    
+    if "errorCode" in response:
+        return jsonify(response), 400
+        
+    return jsonify(response), 200
 
-
-
-# 2. RECORD SALE
 
 @transaction_bp.route("/checkout", methods=["POST"])
 @jwt_required()
-@role_required("VENDOR", "CASHIER")
 def checkout():
     data = request.get_json()
     user_id = get_jwt_identity()
 
     if not data:
-        return {"msg": "Request body is required"}, 400
+        return jsonify({"msg": "Request body is required"}), 400
 
     items = data.get("items")
     payment_method = data.get("payment_method", "OFFLINE")
 
     if not items or not isinstance(items, list):
-        return {"msg": "Items must be a non-empty list"}, 400
+        return jsonify({"msg": "Items must be a non-empty list"}), 400
 
-    # Calculate total server-side (anti-tampering)
     total = 0
     try:
         for item in items:
@@ -54,7 +49,7 @@ def checkout():
                 raise ValueError
             total += price * qty
     except (KeyError, TypeError, ValueError):
-        return {"msg": "Invalid item format"}, 400
+        return jsonify({"msg": "Invalid item format"}), 400
 
     sale = Sale(
         vendor_id=user_id,
@@ -65,23 +60,36 @@ def checkout():
 
     try:
         db.session.add(sale)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        return {"msg": "Failed to record transaction"}, 500
+        db.session.flush()
 
-    return {
+        for item in items:
+            sale_item = SaleItem(
+                sale_id=sale.id,
+                product_name=item.get("name", "Unknown Item"), 
+                quantity=int(item["qty"]),
+                price=float(item["price"])
+            )
+            db.session.add(sale_item)
+
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error recording transaction: {e}")
+        return jsonify({"msg": "Failed to record transaction"}), 500
+
+    return jsonify({
         "message": "Checkout successful",
         "transaction_id": sale.id,
         "total": sale.total,
         "offline": sale.is_offline,
         "timestamp": sale.created_at.isoformat()
-    }, 201
+    }), 201
+
 
 @transaction_bp.route("/vendor/<int:vendor_id>", methods=["GET"])
 @jwt_required()
-@role_required("ADMIN", "VENDOR")
 def get_vendor_transactions(vendor_id):
+
     transactions = (
         Sale.query
         .filter_by(vendor_id=vendor_id)
@@ -89,7 +97,7 @@ def get_vendor_transactions(vendor_id):
         .all()
     )
 
-    return [
+    return jsonify([
         {
             "id": tx.id,
             "total": tx.total,
@@ -97,5 +105,4 @@ def get_vendor_transactions(vendor_id):
             "created_at": tx.created_at.isoformat()
         }
         for tx in transactions
-    ], 200
-
+    ]), 200
