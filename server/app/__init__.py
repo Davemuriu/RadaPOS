@@ -7,8 +7,9 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object('config.Config')
+    app.config.from_object(config_class)
 
+    cors.init_app(app, resources={r"/api/*": {"origins": "*"}})
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
@@ -19,9 +20,12 @@ def create_app():
     from app.routes.auth_routes import auth_bp
     from app.routes.transaction_routes import transaction_bp
 
-    app.register_blueprint(auth_bp, url_prefix='/auth')
-    app.register_blueprint(transaction_bp, url_prefix='/transactions')
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
+    app.register_blueprint(admin_bp, url_prefix="/api/admin")
+    app.register_blueprint(event_bp, url_prefix="/api/events")
 
-    from app import models
+    @app.get("/api/health")
+    def health():
+        return jsonify({"status": "ok"}), 200
 
     return app
