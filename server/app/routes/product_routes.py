@@ -7,32 +7,24 @@ from app.utils.rbac import role_required
 
 product_bp = Blueprint("product", __name__)
 
-# Get all products
-@product_bp.route("/", methods=["GET"])
+# Get all products (with vendor name included)
+@product_bp.route("/", methods=["GET"], endpoint="get_products_list")
 @jwt_required()
 def get_products():
     products = Product.query.all()
-    return jsonify([{
-        "id": p.id,
-        "name": p.name,
-        "price": p.price,
-        "description": p.description
-    } for p in products]), 200
-
-# Get single product
-@product_bp.route("/<int:product_id>", methods=["GET"])
-@jwt_required()
-def get_product(product_id):
-    product = Product.query.get_or_404(product_id)
-    return {
-        "id": product.id,
-        "name": product.name,
-        "price": product.price,
-        "description": product.description
-    }, 200
+    result = []
+    for p in products:
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "description": p.description,
+            "vendor_name": p.vendor.business_name if p.vendor else None
+        })
+    return jsonify({"products": result}), 200
 
 # Create product (VENDOR only)
-@product_bp.route("/", methods=["POST"])
+@product_bp.route("/", methods=["POST"], endpoint="create_product")
 @jwt_required()
 @role_required("VENDOR")
 def create_product():
@@ -47,7 +39,7 @@ def create_product():
     return {"msg": "Product created", "product_id": product.id}, 201
 
 # Update product (VENDOR only)
-@product_bp.route("/<int:product_id>", methods=["PUT"])
+@product_bp.route("/<int:product_id>", methods=["PUT"], endpoint="update_product")
 @jwt_required()
 @role_required("VENDOR")
 def update_product(product_id):
@@ -60,7 +52,7 @@ def update_product(product_id):
     return {"msg": "Product updated"}, 200
 
 # Delete product (VENDOR only)
-@product_bp.route("/<int:product_id>", methods=["DELETE"])
+@product_bp.route("/<int:product_id>", methods=["DELETE"], endpoint="delete_product")
 @jwt_required()
 @role_required("VENDOR")
 def delete_product(product_id):
@@ -68,4 +60,3 @@ def delete_product(product_id):
     db.session.delete(product)
     db.session.commit()
     return {"msg": "Product deleted"}, 200
-# Note: Error handling and input validation can be expanded as needed.
