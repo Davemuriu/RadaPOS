@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../services/api";
-import ProductForm from "./components/ProductForm";
+import ProductForm from "./components/Products";
 
 export default function Inventory() {
   const [products, setProducts] = useState([]);
