@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, jwt_required
+from flask_jwt_extended import  create_access_token, jwt_required
 from app.models.user import User
 from app.extensions import db
 from app.utils.security import verify_password, hash_password
@@ -15,7 +15,7 @@ def login():
         return jsonify({"msg": "Invalid credentials"}), 401
 
     token = create_access_token(
-        identity=user.id,
+        identity=str(user.id),
         additional_claims={"role": user.role}
     )
 

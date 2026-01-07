@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_jwt_extended import JWTManager
+from flask_cors import CORS
 
 from config import Config
 from app.extensions import db
@@ -12,7 +13,10 @@ def create_app():
     db.init_app(app)
     JWTManager(app)
 
-    # 🔌 Import blueprints
+    # Enable CORS (allow all origins for dev)
+    CORS(app, resources={r"/*": {"origins": "*"}})
+
+    # Import and register blueprints
     from app.routes.auth_routes import auth_bp
     from app.routes.user_routes import user_bp
     from app.routes.wallet_routes import wallet_bp
@@ -20,7 +24,6 @@ def create_app():
     from app.routes.product_routes import product_bp
     from app.routes.event_routes import event_bp
 
-    # 🔌 Register blueprints
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(user_bp, url_prefix="/users")
     app.register_blueprint(wallet_bp, url_prefix="/wallet")

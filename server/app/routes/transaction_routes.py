@@ -1,81 +1,52 @@
-from flask import Blueprint, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
-
+# app/routes/transaction_routes.py
+from flask import Blueprint, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from sqlalchemy import func
 from app.extensions import db
-from app.models.transaction import Sale
+from app.models.transaction import Transaction
 from app.utils.rbac import role_required
 
-transaction_bp = Blueprint("transaction", __name__)
+transaction_bp = Blueprint("transaction_bp", __name__)
 
-@transaction_bp.route("/checkout", methods=["POST"])
-@jwt_required()
-@role_required("VENDOR", "CASHIER")
-def checkout():
-    data = request.get_json()
-    user_id = get_jwt_identity()
 
-    if not data:
-        return {"msg": "Request body is required"}, 400
-
-    items = data.get("items")
-    payment_method = data.get("payment_method", "OFFLINE")
-
-    if not items or not isinstance(items, list):
-        return {"msg": "Items must be a non-empty list"}, 400
-
-    # Calculate total server-side (anti-tampering)
-    total = 0
-    try:
-        for item in items:
-            price = float(item["price"])
-            qty = int(item["qty"])
-            if price < 0 or qty <= 0:
-                raise ValueError
-            total += price * qty
-    except (KeyError, TypeError, ValueError):
-        return {"msg": "Invalid item format"}, 400
-
-    sale = Sale(
-        vendor_id=user_id,
-        total=total,
-        is_offline=(payment_method == "OFFLINE"),
-        created_at=datetime.utcnow()
-    )
-
-    try:
-        db.session.add(sale)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        return {"msg": "Failed to record transaction"}, 500
-
-    return {
-        "message": "Checkout successful",
-        "transaction_id": sale.id,
-        "total": sale.total,
-        "offline": sale.is_offline,
-        "timestamp": sale.created_at.isoformat()
-    }, 201
-
-@transaction_bp.route("/vendor/<int:vendor_id>", methods=["GET"])
+# transaction_routes.py
+@transaction_bp.route("/summary", methods=["GET"])
 @jwt_required()
 @role_required("ADMIN", "VENDOR")
-def get_vendor_transactions(vendor_id):
-    transactions = (
-        Sale.query
-        .filter_by(vendor_id=vendor_id)
-        .order_by(Sale.created_at.desc())
-        .all()
-    )
+def transaction_summary():
+    user_id = int(get_jwt_identity())
 
-    return [
-        {
-            "id": tx.id,
-            "total": tx.total,
-            "offline": tx.is_offline,
-            "created_at": tx.created_at.isoformat()
-        }
-        for tx in transactions
-    ], 200
+    total_amount = db.session.query(
+        func.coalesce(func.sum(Transaction.amount), 0)
+    ).filter(Transaction.user_id == user_id).scalar()
+
+    transaction_count = db.session.query(
+        func.count(Transaction.id)
+    ).filter(Transaction.user_id == user_id).scalar()
+
+    return jsonify({
+        "total_amount": total_amount,
+        "transaction_count": transaction_count
+    }), 200
+
+
+# Optional: list all transactions for user
+@transaction_bp.route("/transactions", methods=["GET"])
+@jwt_required()
+@role_required("ADMIN", "VENDOR")
+def list_transactions():
+    user_id = int(get_jwt_identity())
+
+    transactions = Transaction.query.filter_by(user_id=user_id).order_by(Transaction.created_at.desc()).all()
+
+    data = []
+    for t in transactions:
+        data.append({
+            "id": t.id,
+            "amount": t.amount,
+            "created_at": t.created_at.isoformat()
+        })
+
+    return jsonify(data), 200
+
 
