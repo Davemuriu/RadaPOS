@@ -1,116 +1,82 @@
-from flask import Blueprint, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
-
-from app import db
-from app.models.wallet import Wallet, Withdrawal, Settlement
-from app.models.user import Vendor
-from datetime import datetime
+# app/routes/wallet_routes.py
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from app.extensions import db
+from app.models.user import User
 from app.utils.rbac import role_required
-from app.services.daraja_service import DarajaService
-wallet_bp = Blueprint("wallet", __name__)
 
-@wallet_bp.route("/", methods=["GET"])
+wallet_bp = Blueprint('wallet', __name__)
+
+# Get wallet balance (for vendors)
+@wallet_bp.route('/balance', methods=['GET'])
 @jwt_required()
-@role_required("VENDOR")
-def get_wallet():
-    vendor_id = get_jwt_identity()
+@role_required('VENDOR')
+def get_wallet_balance():
+    user_id = get_jwt_identity()
+    
+    # For now, return a dummy balance
+    # In a real app, you would have a Wallet model
+    return jsonify({
+        'balance': 0.0,
+        'currency': 'KES',
+        'user_id': user_id
+    }), 200
 
-    wallet = Wallet.query.filter_by(vendor_id=vendor_id).first()
-    if not wallet:
-        wallet = Wallet(vendor_id=vendor_id)
-        db.session.add(wallet)
-        db.session.commit()
-
-    return {
-        "current_balance": wallet.current_balance,
-        "last_updated": wallet.last_updated
-    }, 200
-
-@wallet_bp.route("/settlements", methods=["GET"])
+# Get wallet transactions (for vendors)
+@wallet_bp.route('/transactions', methods=['GET'])
 @jwt_required()
-@role_required("VENDOR")
-def get_settlements():
-    vendor_id = get_jwt_identity()
+@role_required('VENDOR')
+def get_wallet_transactions():
+    user_id = get_jwt_identity()
+    
+    # Return empty transactions for now
+    # In a real app, you would query WalletTransaction model
+    return jsonify({
+        'transactions': [],
+        'total': 0
+    }), 200
 
-    wallet = Wallet.query.filter_by(vendor_id=vendor_id).first()
-    if not wallet:
-        return {"msg": "Wallet not found"}, 404
-
-    settlements = Settlement.query.filter_by(wallet_id=wallet.id).all()
-
-    return [
-        {
-            "event_id": s.event_id,
-            "total_sales_volume": s.total_sales_volume,
-            "platform_fee": s.platform_fee,
-            "net_payout": s.net_payout,
-            "status": s.status
-        }
-        for s in settlements
-    ], 200
-
-@wallet_bp.route("/withdraw", methods=["POST"])
+# Admin: Get all vendor wallets
+@wallet_bp.route('/vendor-wallets', methods=['GET'])
 @jwt_required()
-@role_required("VENDOR")
-def request_withdrawal():
-    vendor_id = get_jwt_identity()
+@role_required('ADMIN', 'MANAGER')
+def get_vendor_wallets():
+    vendors = User.query.filter_by(role='VENDOR', is_active=True).all()
+    
+    wallets = []
+    for vendor in vendors:
+        # Calculate vendor's total sales from products
+        # This is a simplified version
+        wallets.append({
+            'vendor_id': vendor.id,
+            'vendor_name': vendor.name,
+            'business_name': vendor.business_name,
+            'email': vendor.email,
+            'balance': 0.0,  # Placeholder
+            'currency': 'KES'
+        })
+    
+    return jsonify({'wallets': wallets}), 200
+
+# Update wallet balance (admin only)
+@wallet_bp.route('/update-balance', methods=['POST'])
+@jwt_required()
+@role_required('ADMIN')
+def update_wallet_balance():
     data = request.get_json()
-
-    if not data or "amount" not in data or "phone" not in data:
-        return {"msg": "Amount and phone required"}, 400
-
-    amount = float(data["amount"])
-    phone = data["phone"]
-
-    wallet = Wallet.query.filter_by(vendor_id=vendor_id).first()
-    if not wallet or wallet.current_balance < amount:
-        return {"msg": "Insufficient balance"}, 400
-
-    withdrawal = Withdrawal(
-        wallet_id=wallet.id,
-        amount=amount,
-        status="pending"
-    )
-
-    db.session.add(withdrawal)
-    db.session.commit()
-
-    # Initiate Daraja B2C payout
-    response = DarajaService.b2c_payout(
-        phone=phone,
-        amount=amount,
-        reference=f"WDR-{withdrawal.id}"
-    )
-
-    return {
-        "msg": "Withdrawal initiated",
-        "withdrawal_id": withdrawal.id,
-        "mpesa_response": response
-    }, 200
-
-@wallet_bp.route("/withdraw/callback", methods=["POST"])
-def withdrawal_callback():
-    data = request.get_json()
-
-    try:
-        result = data["Result"]
-        reference = result["OriginatorConversationID"]
-        status = result["ResultCode"]
-
-        withdrawal_id = int(reference.split("-")[-1])
-        withdrawal = Withdrawal.query.get_or_404(withdrawal_id)
-        wallet = Wallet.query.get_or_404(withdrawal.wallet_id)
-
-        if status == 0:
-            withdrawal.status = "completed"
-            wallet.current_balance -= withdrawal.amount
-        else:
-            withdrawal.status = "failed"
-
-        wallet.last_updated = datetime.utcnow()
-        db.session.commit()
-
-    except Exception:
-        return {"msg": "Callback processing error"}, 500
-
-    return {"msg": "Withdrawal processed"}, 200
+    
+    if not data or not data.get('vendor_id') or not data.get('amount'):
+        return jsonify({'msg': 'Vendor ID and amount required'}), 400
+    
+    vendor = User.query.filter_by(id=data['vendor_id'], role='VENDOR').first()
+    
+    if not vendor:
+        return jsonify({'msg': 'Vendor not found'}), 404
+    
+    # In a real app, you would update the Wallet model here
+    return jsonify({
+        'msg': 'Wallet balance would be updated',
+        'vendor_id': vendor.id,
+        'vendor_name': vendor.name,
+        'amount': data['amount']
+    }), 200
