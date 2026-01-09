@@ -1,0 +1,44 @@
+# app/models/user.py
+from datetime import datetime
+from app.extensions import db, bcrypt
+
+class User(db.Model):
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(180), unique=True, nullable=False, index=True)
+
+    role = db.Column(db.String(20), nullable=False, index=True, default="vendor")
+    admin_role = db.Column(db.String(30), nullable=True, index=True)
+
+    password_hash = db.Column(db.String(255), nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # ✅ Explicitly bind vendor_profile to vendors.owner_id
+    vendor_profile = db.relationship(
+        "Vendor",
+        back_populates="owner",
+        uselist=False,
+        foreign_keys="Vendor.owner_id",
+    )
+
+    def set_password(self, password: str):
+        self.password_hash = bcrypt.generate_password_hash(password).decode("utf-8")
+
+    def check_password(self, password: str) -> bool:
+        return bcrypt.check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "email": self.email,
+            "role": self.role,
+            "admin_role": self.admin_role,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
