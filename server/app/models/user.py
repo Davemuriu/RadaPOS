@@ -1,7 +1,8 @@
 from app.extensions import db, bcrypt
 from datetime import datetime
+from flask_login import UserMixin
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -33,6 +34,9 @@ class User(db.Model):
     bank_name = db.Column(db.String(100), nullable=True)
     bank_account_number = db.Column(db.String(50), nullable=True)
     withdrawal_mpesa_number = db.Column(db.String(20), nullable=True)
+    
+    # NEW FIELD FOR PAYOUT SIMULATION
+    wallet_balance = db.Column(db.Float, default=0.0)
 
     # NOTIFICATIONS
     notify_stock = db.Column(db.Boolean, default=True)
@@ -61,7 +65,14 @@ class User(db.Model):
 
     # SERIALIZATION
     def to_dict(self):
-        current_ev_id = self.assigned_events[-1].id if hasattr(self, 'assigned_events') and self.assigned_events else None
+        # Handle case where assigned_events might not be loaded yet
+        current_ev_id = None
+        if hasattr(self, 'assigned_events') and self.assigned_events:
+             # Assuming assigned_events is a relationship defined in Event model
+             try:
+                current_ev_id = self.assigned_events[-1].id
+             except (IndexError, AttributeError):
+                pass
         
         base_data = {
             "id": self.id,
@@ -77,7 +88,8 @@ class User(db.Model):
             "notify_sales": self.notify_sales,
             "notify_email": self.notify_email,
             "id_number": self.id_number,
-            "must_change_password": self.must_change_password
+            "must_change_password": self.must_change_password,
+            "wallet_balance": self.wallet_balance
         }
 
         if self.role == 'VENDOR':

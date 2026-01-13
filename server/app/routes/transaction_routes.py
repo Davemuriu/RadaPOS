@@ -8,7 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 transaction_bp = Blueprint('transaction_bp', __name__)
 
-# MPESA CALLBACK
+#  MPESA CALLBACK 
 @transaction_bp.route('/mpesa/callback', methods=['POST'])
 def mpesa_callback():
     """Handles Safaricom STK Push results"""
@@ -44,7 +44,7 @@ def mpesa_callback():
     db.session.commit()
     return jsonify({"ResultCode": 0, "ResultDesc": "Success"}), 200
 
-# GET TRANSACTIONS
+#  GET TRANSACTIONS 
 @transaction_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_transactions():
@@ -57,12 +57,11 @@ def get_transactions():
             sales = Sale.query.order_by(Sale.created_at.desc()).all()
         elif user.role.upper() == 'VENDOR':
             # Vendors see sales made by themselves AND their cashiers
-            # We filter by User.parent_id if you have that, 
-            # or by all sales linked to this vendor's business
             sales = Sale.query.join(User, Sale.cashier_id == User.id)\
                 .filter((User.id == current_user_id) | (User.parent_id == current_user_id))\
                 .order_by(Sale.created_at.desc()).all()
         else:
+            # Cashiers only see their own sales
             sales = Sale.query.filter_by(cashier_id=current_user_id).order_by(Sale.created_at.desc()).all()
         
         return jsonify([{
@@ -87,52 +86,73 @@ def create_transaction():
         data = request.get_json()
         
         cart_items = data.get('items', [])
-        payment_method = data.get('payment_method', 'CASH')
+        payment_method = data.get('payment_method', 'CASH').upper()
         
         if not cart_items:
             return jsonify({"msg": "Cart is empty"}), 400
 
-        total_amount = 0
+        # 1. Calculate Total & Validate Stock FIRST
+        # This prevents creating a Sale with a null total
+        calculated_total = 0
+        valid_items = []
+
+        for item in cart_items:
+            product = Product.query.get(item['id'])
+            if not product:
+                return jsonify({"msg": f"Product ID {item['id']} not found"}), 400
+            
+            if product.stock_quantity < item['quantity']:
+                return jsonify({"msg": f"Insufficient stock for {product.name}"}), 400
+            
+            line_total = product.price * item['quantity']
+            calculated_total += line_total
+            
+            valid_items.append({
+                "product": product,
+                "quantity": item['quantity'],
+                "price": product.price
+            })
+
+        # 2. Create Sale Record with the Calculated Total
         new_sale = Sale(
+            total_amount=calculated_total,
             payment_method=payment_method,
             status='PENDING' if payment_method == 'MPESA' else 'COMPLETED',
             cashier_id=current_user_id,
             created_at=datetime.utcnow()
         )
         
-        # Temporarily add to session to get ID
         db.session.add(new_sale)
         db.session.flush()
 
-        for item in cart_items:
-            product = Product.query.get(item['id'])
-            if not product or product.stock_quantity < item['quantity']:
-                db.session.rollback()
-                return jsonify({"msg": f"Stock error for {product.name if product else 'item'}"}), 400
+        # 3. Create Sale Items & Deduct Stock
+        for v_item in valid_items:
+            product = v_item['product']
+            qty = v_item['quantity']
             
-            product.stock_quantity -= item['quantity']
-            line_total = product.price * item['quantity']
-            total_amount += line_total
+            # Deduct Stock
+            product.stock_quantity -= qty
             
-            db.session.add(SaleItem(
+            # Create SaleItem record
+            sale_item = SaleItem(
                 sale_id=new_sale.id,
                 product_id=product.id,
                 product_name=product.name,
-                quantity=item['quantity'],
-                price=product.price
-            ))
+                quantity=qty,
+                price=v_item['price']
+            )
+            db.session.add(sale_item)
 
-        new_sale.total_amount = total_amount
         db.session.commit()
 
         return jsonify({
-            "msg": "Transaction processed", 
+            "msg": "Transaction processed successfully", 
             "sale_id": new_sale.id,
-            "total": total_amount,
+            "total": calculated_total,
             "status": new_sale.status
         }), 201
 
     except Exception as e:
         db.session.rollback()
         print(f"Transaction Error: {e}")
-        return jsonify({"msg": "Transaction failed"}), 500
+        return jsonify({"msg": f"Transaction failed: {str(e)}"}), 500

@@ -11,6 +11,8 @@ class Product(db.Model):
     stock_quantity = db.Column(db.Integer, default=0)
     image_url = db.Column(db.String(255))
     
+    category = db.Column(db.String(50), default='General') 
+    
     vendor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -23,6 +25,7 @@ class Product(db.Model):
             "description": self.description,
             "price": self.price,
             "stock_quantity": self.stock_quantity,
+            "category": self.category,
             "vendor_id": self.vendor_id,
             "image_url": self.image_url
         }
