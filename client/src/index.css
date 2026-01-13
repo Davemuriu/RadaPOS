@@ -1,4 +1,66 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
+
+:root {
+    --bg-page: #050505;
+    --bg-card: #0F1216;
+    --bg-card-hover: #1A1D21;
+
+    --primary: #10B981;
+    --primary-glow: rgba(16, 185, 129, 0.4);
+
+    --text-main: #FFFFFF;
+    --text-muted: #9CA3AF;
+
+    --border: #1F2937;
+    --border-highlight: #374151;
+    --grid-color: rgba(255, 255, 255, 0.03);
+
+    --max-width: 1400px;
+    --nav-height: 80px;
+}
+
+[data-theme='light'] {
+    --bg-page: #F9FAFB;
+    --bg-card: #FFFFFF;
+    --bg-card-hover: #F3F4F6;
+
+    --primary: #059669;
+    --primary-glow: rgba(5, 150, 105, 0.2);
+
+    --text-main: #111827;
+    --text-muted: #6B7280;
+
+    --border: #E5E7EB;
+    --border-highlight: #D1D5DB;
+    --grid-color: rgba(0, 0, 0, 0.05);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s, color 0.3s;
+
+    background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+    background-size: 50px 50px;
+    background-attachment: fixed;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}

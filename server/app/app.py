@@ -7,7 +7,7 @@ import jwt
 
 app = Flask(__name__)
 
-# --- CONFIG ---
+# CONFIG
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///radapos.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'rada_pos_2026_secret'
@@ -22,7 +22,7 @@ CORS(app, resources={r"/api/*": {
     "allow_headers": ["Content-Type", "X-User-Role"]
 }})
 
-# --- MODELS ---
+# MODELS
 class AdminUser(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -31,16 +31,14 @@ class AdminUser(db.Model):
     role = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), default='pending')
 
-# --- REFACTORED SECURITY CHECK ---
-# We move the check inside the function to avoid blocking OPTIONS requests
+# REFACTORED SECURITY CHECK
 def check_admin_role():
     user_role = request.headers.get('X-User-Role')
     if not user_role or user_role != 'Administrator':
         return False
     return True
 
-# --- ROUTES ---
-
+# ROUTES
 @app.route('/api/admin/db-init', methods=['POST'])
 def initialize_db():
     db.create_all()
@@ -88,9 +86,8 @@ def handle_users():
             'exp': datetime.utcnow() + timedelta(hours=24)
         }, app.config['SECRET_KEY'], algorithm='HS256')
         
-        # Link for your terminal
         invite_link = f"http://localhost:5173/setup-password?token={token}"
-        print(f"\n--- INVITE GENERATED ---\nUser: {data['email']}\nLink: {invite_link}\n------------------------\n")
+        print(f"\n--- INVITE GENERATED\nUser: {data['email']}\nLink: {invite_link}\n------------------------\n")
         
         return jsonify({"message": "Account created. Invite link generated in terminal."}), 201
 

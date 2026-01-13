@@ -1,7 +1,5 @@
-# app/routes/payout_routes.py
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-
 from app.extensions import db
 from app.utils.decorators import role_required
 from app.models.payout import Payout, PayoutStatus

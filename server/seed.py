@@ -1,112 +1,88 @@
-from app import create_app, db
-from datetime import datetime
+import os
+from dotenv import load_dotenv
+from sqlalchemy import text
 
-# IMPORTS
-from app.models.event import Event, EventVendor
+load_dotenv()
+
+from app import create_app, db, bcrypt
 from app.models.product import Product
-from app.models.user import User, Vendor
-from app.models.wallet import Wallet  # <--- Added Wallet
-from app.models.transaction import Sale
+from app.models.user import User
 
 app = create_app()
 
 with app.app_context():
-    print("🌱 Starting Database Seed...")
+    print(f"🔌 Connecting to: {app.config['SQLALCHEMY_DATABASE_URI']}")
+    
+    print("🧹 Wiping Database (Force Cascade)...")
+    try:
+        db.session.execute(text('DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres;'))
+        db.session.commit()
+    except Exception as e:
+        print(f"   - Wipe warning: {e}")
+        db.session.rollback()
+    
+    db.create_all()
+    print("✨ Tables Recreated.")
 
+    # 1. Create ADMIN
+    admin_pass = bcrypt.generate_password_hash("admin123").decode('utf-8')
+    admin = User(
+        email="admin@radapos.com", 
+        password=admin_pass, 
+        role="ADMIN",
+        name="System Administrator",
+        phone_number="0700000000"
+    )
+    db.session.add(admin)
+
+    # 2. Create VENDOR
+    vendor_pass = bcrypt.generate_password_hash("password123").decode('utf-8')
+    vendor = User(
+        email="vendor@test.com", 
+        password=vendor_pass, 
+        role="VENDOR",
+        name="David Muriu",
+        phone_number="0712345678",
+        id_number="12345678",
+        business_name="Muriu Wines & Spirits",
+        withdrawal_mpesa_number="0712345678"
+    )
+    db.session.add(vendor)
+
+    # 3. Create CASHIER
+    cashier_pass = bcrypt.generate_password_hash("cashier123").decode('utf-8')
+    cashier = User(
+        email="cashier@test.com", 
+        password=cashier_pass, 
+        role="CASHIER",
+        name="John Cashier",
+        phone_number="0722334455",
+        id_number="87654321"
+    )
+    db.session.add(cashier)
     
-    # 1. Create User & Vendor (The Seller)
-    
-    vendor_email = "vendor@test.com"
-    user = User.query.filter_by(email=vendor_email).first()
-    
-    if not user:
-        print(f"👤 Creating dummy vendor: {vendor_email}")
-        user = User(
-            email=vendor_email,
-            password="password123", # Plain text triggers the @password.setter
-            role="vendor"
+    db.session.commit()
+    print("👤 Created Users: Admin, Vendor, Cashier")
+
+    # 4. Create Products
+    products_data = [
+        {"name": "Tusker Lager", "price": 300, "stock": 50},
+        {"name": "White Cap", "price": 350, "stock": 40},
+        {"name": "Tusker Cider", "price": 250, "stock": 100},
+        {"name": "Soda (Coke)", "price": 100, "stock": 200},
+        {"name": "Water (500ml)", "price": 50, "stock": 24}
+    ]
+
+    for p in products_data:
+        prod = Product(
+            name=p["name"],
+            price=p["price"],
+            stock_quantity=p["stock"],
+            vendor_id=vendor.id,
+            description="Event beverage"
         )
-        db.session.add(user)
-        db.session.commit()
-
-        # Create Profile
-        vendor_profile = Vendor(user_id=user.id, business_name="Tusker Bar")
-        db.session.add(vendor_profile)
-        db.session.commit()
-        print(f"   ✅ Vendor Profile Created (ID: {vendor_profile.id})")
-    else:
-        print(f"   ℹ️ Vendor already exists (ID: {user.id})")
-        vendor_profile = Vendor.query.filter_by(user_id=user.id).first()
-
+        db.session.add(prod)
     
-    # 2. Create Wallet (The Money Bag) - NEW!
-    
-    wallet = Wallet.query.filter_by(vendor_id=vendor_profile.id).first()
-    if not wallet:
-        print("💰 Creating Vendor Wallet")
-        wallet = Wallet(
-            vendor_id=vendor_profile.id,
-            current_balance=0.0
-        )
-        db.session.add(wallet)
-        db.session.commit()
-        print("   ✅ Wallet Created")
-    else:
-        print("   ℹ️ Wallet already exists")
-
-    
-    # 3. Create Event (The Concert)
-    event = Event.query.get(1)
-    if not event:
-        print("🎉 Creating Dummy Event: Solfest")
-        event = Event(
-            id=1,
-            name="Solfest Test",
-            location="Nairobi Gardens",
-            start_date=datetime.utcnow(), 
-            end_date=datetime.utcnow(),   
-            is_active=True
-        )
-        db.session.add(event)
-        db.session.commit()
-        print("   ✅ Event Created")
-    else:
-        print("   ℹ️ Event ID 1 already exists")
-
-    
-    # 4. Link Vendor to Event
-    event_vendor = EventVendor.query.filter_by(event_id=1, vendor_id=vendor_profile.id).first()
-    if not event_vendor:
-        print("🎪 Assigning Vendor to Event Booth")
-        ev = EventVendor(
-            event_id=1,
-            vendor_id=vendor_profile.id,
-            booth_number="B-01",
-            status="approved"
-        )
-        db.session.add(ev)
-        db.session.commit()
-        print("   ✅ Vendor linked to Event")
-
-    
-    # 5. Create Product (The Beer)
-    product = Product.query.get(100)
-    if not product:
-        print("🍺 Creating Dummy Product: Tusker Cider")
-        product = Product(
-            id=100,
-            name="Tusker Cider",
-            price=250.0,
-            stock_quantity=50,
-            vendor_id=vendor_profile.id,
-        )
-        db.session.add(product)
-        db.session.commit()
-        print("   ✅ Product Created")
-    else:
-        print("   ℹ️ Product ID 100 already exists")
-
-    print("\n🚀 SEEDING COMPLETE!")
-    print(f"👉 Use Event ID: 1")
-    print(f"👉 Use Product ID: 100")
-    print(f"👉 Vendor Login: {vendor_email} / password123")
+    db.session.commit()
+    print(f"🍺 Added {len(products_data)} Products.")
+    print("\n🚀 DATABASE UPDATE COMPLETE!")

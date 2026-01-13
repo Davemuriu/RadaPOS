@@ -1,26 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Calendar, MapPin, Loader2, Download, ChevronDown, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Plus, X, Calendar, MapPin, Loader2, Search, Edit2,
+  Trash2, ShieldAlert, CheckCircle, ChevronDown, Filter,
+  Sun, Moon
+} from 'lucide-react';
+import '../../styles/Admin/AdminManagement.css';
+import '../../styles/Admin/AdminDashboard.css';
 
 export default function AdminEvents() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
+  //  THEME LOGIC
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
   // Filter States
-  const [dateFilter, setDateFilter] = useState('All');
+  const [dateFilter, setDateFilter] = useState('All Period');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Modal & Form State
+  // Modal & Edit State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [currentId, setCurrentId] = useState(null);
+
+  // Form Data
   const [formData, setFormData] = useState({
     name: '',
-    date_range: '',
-    region: '',
-    status: 'upcoming'
+    location: '',
+    starts_at: '',
+    ends_at: ''
   });
 
-  // Re-fetch events whenever the date filter changes
+  const token = localStorage.getItem('access_token');
+
   useEffect(() => {
     fetchEvents();
   }, [dateFilter]);
@@ -28,10 +53,13 @@ export default function AdminEvents() {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      // Syncing with your existing stats endpoint and adding the period filter
-      const response = await fetch(`http://localhost:5555/api/admin/stats?period=${dateFilter.toLowerCase().replace(' ', '_')}`);
+      if (!token) { navigate('/admin/login'); return; }
+      const response = await fetch(`http://localhost:5555/api/admin/events`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.status === 401) { navigate('/admin/login'); return; }
       const data = await response.json();
-      setEvents(data.active_events || []);
+      setEvents(data || []);
     } catch (err) {
       console.error("Fetch failed", err);
     } finally {
@@ -39,242 +67,297 @@ export default function AdminEvents() {
     }
   };
 
-  const handleDownloadReport = () => {
-    // Directs browser to the Python export route with current filter
-    window.location.href = `http://localhost:5555/api/admin/events/export?period=${dateFilter.toLowerCase().replace(' ', '_')}`;
+  const handleToggleStatus = async (id, currentStatus) => {
+    const action = currentStatus ? 'suspend' : 'activate';
+    if (!window.confirm(`Are you sure you want to ${action} this event?`)) return;
+
+    try {
+      const res = await fetch(`http://localhost:5555/api/admin/events/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ is_active: !currentStatus })
+      });
+      if (res.ok) fetchEvents();
+    } catch (err) {
+      alert("Status update failed");
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Permanently delete this event? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`http://localhost:5555/api/admin/events/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) fetchEvents();
+    } catch (err) {
+      alert("Delete failed");
+    }
+  };
+
+  const openEdit = (event) => {
+    setEditMode(true);
+    setCurrentId(event.id);
+    const format = (d) => d ? new Date(d).toISOString().split('T')[0] : '';
+    setFormData({
+      name: event.name,
+      location: event.location,
+      starts_at: format(event.starts_at),
+      ends_at: format(event.ends_at)
+    });
+    setIsModalOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditMode(false);
+    setFormData({ name: '', location: '', starts_at: '', ends_at: '' });
+    setIsModalOpen(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const response = await fetch("http://localhost:5555/api/admin/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+      const payload = {
+        name: formData.name,
+        location: formData.location,
+        starts_at: new Date(formData.starts_at).toISOString(),
+        ends_at: new Date(formData.ends_at).toISOString()
+      };
+      const url = editMode
+        ? `http://localhost:5555/api/admin/events/${currentId}`
+        : `http://localhost:5555/api/admin/events`;
+      const method = editMode ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
         setIsModalOpen(false);
-        setFormData({ name: '', date_range: '', region: '', status: 'upcoming' });
         fetchEvents();
+      } else {
+        alert("Error processing event");
       }
     } catch (err) {
-      alert("Error creating event");
+      alert("Error processing event");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Filter the table based on search input
-  const filteredEvents = Array.isArray(events) 
+  const filteredEvents = Array.isArray(events)
     ? events.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()))
     : [];
 
   return (
-    <div className="p-8 text-white bg-[#0B0E11] min-h-screen relative font-sans">
-      
-      {/* Header & Controls */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
+    <div className="management-container">
+      {/* Header */}
+      <div className="management-header">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Event Management</h1>
-          <div className="flex flex-wrap gap-4 mt-4">
-            {/* Date Filter Dropdown */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                className="bg-[#11141A] border border-gray-800 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 hover:border-gray-600 transition-all"
-              >
-                <Calendar size={14} className="text-indigo-400" /> 
-                Period: {dateFilter} 
-                <ChevronDown size={14} />
-              </button>
-              {showFilterDropdown && (
-                <div className="absolute top-12 left-0 w-44 bg-[#1A1F26] border border-gray-800 rounded-xl z-50 overflow-hidden shadow-2xl">
-                  {['All', 'This Week', 'This Month', 'This Year'].map(opt => (
-                    <button 
-                      key={opt} 
-                      onClick={() => {setDateFilter(opt); setShowFilterDropdown(false)}} 
-                      className="w-full text-left px-4 py-3 text-xs hover:bg-indigo-600/20 transition-colors"
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Download Button */}
-            <button 
-              onClick={handleDownloadReport}
-              className="bg-gray-800 hover:bg-gray-700 border border-gray-700 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all font-medium"
-            >
-              <Download size={14} /> Download Report
-            </button>
-          </div>
+          <h1 className="page-title">Event Registry</h1>
+          <p className="page-subtitle">Configure and monitor platform-wide festivals</p>
         </div>
 
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-[#6366F1] hover:bg-[#5558E3] text-white px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-600/20"
-        >
-          <Plus size={20} /> Create New Event
-        </button>
+        {/* Actions: Theme Toggle + Create Button */}
+        <div className="header-actions">
+          <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Toggle Theme">
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button onClick={openCreate} className="btn-primary create-btn">
+            <Plus size={18} /> Create New Event
+          </button>
+        </div>
       </div>
 
-      {/* Summary Cards Row (Optional - matches Figma bottom row) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-[#11141A] p-6 rounded-2xl border border-gray-800">
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-2">Total Events</p>
-            <p className="text-3xl font-bold">{filteredEvents.length}</p>
-          </div>
-          <div className="bg-[#11141A] p-6 rounded-2xl border border-gray-800">
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-2">Active Regions</p>
-            <p className="text-3xl font-bold">{[...new Set(filteredEvents.map(e => e.region))].length}</p>
-          </div>
-          <div className="bg-[#11141A] p-6 rounded-2xl border border-gray-800">
-            <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-2">Platform Status</p>
-            <p className="text-3xl font-bold text-green-500">Live</p>
-          </div>
+      {/* Stats Overview */}
+      <div className="dashboard-grid stats-overview">
+        <div className="stat-card">
+          <span className="stat-label">Total Events</span>
+          <h2 className="stat-number">{events.length}</h2>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">Active Now</span>
+          <h2 className="stat-number highlight">{events.filter(e => e.is_active).length}</h2>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">Global Locations</span>
+          <h2 className="stat-number">{[...new Set(events.map(e => e.location))].length}</h2>
+        </div>
       </div>
 
-      {/* Events Table Section */}
-      <div className="bg-[#11141A] rounded-3xl border border-gray-800 overflow-hidden">
-        <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-[#161B22]/30">
-          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Registered Events List</h3>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
-            <input 
-              type="text" 
-              placeholder="Search by event name..." 
-              className="bg-[#0B0E11] border border-gray-800 rounded-xl pl-9 pr-4 py-2 text-xs outline-none focus:border-indigo-500 w-64 transition-all"
+      {/* Main Content Area */}
+      <div className="glass-panel main-panel">
+
+        {/* Filters & Search */}
+        <div className="action-bar">
+          <div className="search-wrapper">
+            <Search size={18} className="search-icon" />
+            <input
+              type="text"
+              placeholder="Search by event name..."
+              className="search-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          <div className="filter-wrapper">
+            <button
+              className="filter-dropdown-btn"
+              onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+            >
+              <Filter size={16} />
+              <span>{dateFilter}</span>
+              <ChevronDown size={14} />
+            </button>
+
+            {showFilterDropdown && (
+              <div className="dropdown-menu">
+                {['All Period', 'This Week', 'This Month'].map(opt => (
+                  <button
+                    key={opt}
+                    className="dropdown-item"
+                    onClick={() => { setDateFilter(opt); setShowFilterDropdown(false); }}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-[#0B0E11]/50 text-gray-500 text-[10px] uppercase tracking-[0.2em] border-b border-gray-800">
+        {/* Table */}
+        <div className="table-responsive">
+          <table className="styled-table">
+            <thead>
               <tr>
-                <th className="px-6 py-5 font-bold">Event Name</th>
-                <th className="px-6 py-5 font-bold">Date Range</th>
-                <th className="px-6 py-5 font-bold">Region</th>
-                <th className="px-6 py-5 font-bold">Status</th>
-                <th className="px-6 py-5 font-bold text-right">Vendors</th>
+                <th>Event Info</th>
+                <th>Schedule</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th>Vendors</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody>
               {loading ? (
-                <tr><td colSpan="5" className="p-10 text-center text-gray-500 italic">Updating records...</td></tr>
+                <tr><td colSpan="6" className="text-center py-8 text-muted">Syncing Event Registry...</td></tr>
               ) : filteredEvents.length > 0 ? (
                 filteredEvents.map(event => (
-                  <tr key={event.id} className="hover:bg-white/5 transition-colors group">
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500 text-xs font-bold">
-                          {event.name.charAt(0)}
-                        </div>
-                        <span className="font-semibold">{event.name}</span>
+                  <tr key={event.id}>
+                    <td>
+                      <div className="event-info-cell">
+                        <div className="event-initial">{event.name.charAt(0)}</div>
+                        <span className="font-bold">{event.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-sm text-gray-400 font-medium">{event.date_range}</td>
-                    <td className="px-6 py-5 text-sm text-gray-400">
-                      <div className="flex items-center gap-2">
-                        <MapPin size={12} className="text-gray-600" />
-                        {event.region || 'Not Set'}
+                    <td>
+                      <div className="flex-col">
+                        <span className="font-medium">{new Date(event.starts_at).toLocaleDateString()}</span>
+                        <span className="text-muted text-xs">
+                          {new Date(event.starts_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-6 py-5">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                        event.status === 'active' 
-                        ? 'border-green-500/30 text-green-500 bg-green-500/5' 
-                        : 'border-gray-600 text-gray-500 bg-gray-800/50'
-                      }`}>
-                        {event.status}
+                    <td>
+                      <div className="location-badge">
+                        <MapPin size={12} /> {event.location}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${event.is_active ? 'completed' : 'failed'}`}>
+                        {event.is_active ? 'ACTIVE' : 'SUSPENDED'}
                       </span>
                     </td>
-                    <td className="px-6 py-5 text-sm text-right font-bold text-indigo-100">
-                      {event.vendors_count || 0}
+                    <td className="text-center font-bold">{event.vendors_count || 0}</td>
+                    <td>
+                      <div className="action-buttons">
+                        <button onClick={() => openEdit(event)} className="icon-btn edit" title="Edit">
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleStatus(event.id, event.is_active)}
+                          className={`icon-btn ${event.is_active ? 'warning' : 'success'}`}
+                          title={event.is_active ? "Suspend" : "Activate"}
+                        >
+                          {event.is_active ? <ShieldAlert size={16} /> : <CheckCircle size={16} />}
+                        </button>
+                        <button onClick={() => handleDelete(event.id)} className="icon-btn delete" title="Delete">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="5" className="p-10 text-center text-gray-500">No events match your current filters.</td></tr>
+                <tr><td colSpan="6" className="empty-row">No events found matching your search.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* CREATE EVENT MODAL (Same as before) */}
+      {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#11141A] w-full max-w-md rounded-3xl border border-gray-800 shadow-2xl overflow-hidden">
-            <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-[#161B22]">
-              <h2 className="text-xl font-bold">New Event</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-white transition-colors">
-                <X size={24} />
-              </button>
+        <div className="modal-overlay">
+          <div className="modal-glass">
+            <div className="modal-header">
+              <h2>{editMode ? 'Modify Event' : 'Launch New Event'}</h2>
+              <button className="close-btn" onClick={() => setIsModalOpen(false)}><X size={20} /></button>
             </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Event Name</label>
-                <input 
+            <form onSubmit={handleSubmit} className="modal-form">
+              <div className="form-group">
+                <label>Event Name</label>
+                <input
                   required
-                  type="text" 
-                  placeholder="e.g. Solfest 2026"
-                  className="w-full bg-[#0B0E11] border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors"
+                  placeholder="e.g., Summer Solstice 2026"
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Region</label>
-                  <input 
+              <div className="form-group">
+                <label>Location</label>
+                <div className="input-with-icon">
+                  <MapPin size={16} className="input-icon" />
+                  <input
                     required
-                    type="text" 
-                    placeholder="e.g. Nairobi"
-                    className="w-full bg-[#0B0E11] border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors"
-                    value={formData.region}
-                    onChange={(e) => setFormData({...formData, region: e.target.value})}
+                    placeholder="e.g., Nairobi Central Park"
+                    value={formData.location}
+                    onChange={e => setFormData({ ...formData, location: e.target.value })}
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Status</label>
-                  <select 
-                    className="w-full bg-[#0B0E11] border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors appearance-none"
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  >
-                    <option value="upcoming">Upcoming</option>
-                    <option value="active">Active</option>
-                  </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Starts At</label>
+                  <input
+                    required type="date"
+                    value={formData.starts_at}
+                    onChange={e => setFormData({ ...formData, starts_at: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Ends At</label>
+                  <input
+                    required type="date"
+                    value={formData.ends_at}
+                    onChange={e => setFormData({ ...formData, ends_at: e.target.value })}
+                  />
                 </div>
               </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Date Range</label>
-                <input 
-                  required
-                  type="text" 
-                  placeholder="e.g. Dec 20-22, 2026"
-                  className="w-full bg-[#0B0E11] border border-gray-700 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors"
-                  value={formData.date_range}
-                  onChange={(e) => setFormData({...formData, date_range: e.target.value})}
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={isSubmitting}
-                className="w-full bg-[#6366F1] hover:bg-[#5558E3] text-white font-bold py-4 rounded-xl mt-4 transition-all flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : 'Confirm & Create Event'}
+              <button type="submit" disabled={isSubmitting} className="btn-primary full-width">
+                {isSubmitting ? <Loader2 className="animate-spin" /> : (editMode ? 'Update Event' : 'Launch Event')}
               </button>
             </form>
           </div>

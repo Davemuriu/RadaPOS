@@ -1,7 +1,5 @@
-# app/routes/event_routes.py
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
-
 from app.extensions import db
 from app.utils.decorators import admin_role_required
 from app.models.event import Event

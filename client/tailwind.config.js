@@ -7,22 +7,39 @@ export default {
   theme: {
     extend: {
       colors: {
-        'rada-void': '#020617',     // Main Background
-        'rada-surface': '#0B0F1A',  // Card/Sidebar Background
-        'rada-accent': '#6366f1',   // Primary Indigo
-        'rada-success': '#10b981',  // Emerald Success
-        'rada-warning': '#f97316',  // Orange Warning
-        'rada-danger': '#f43f5e',   // Rose Danger
-        'border-soft': 'rgba(71, 85, 105, 0.2)', // Slate-800/20
-      },
-      borderRadius: {
-        'rada': '2.5rem', // The 40px rounding you like
+        // Mapped to CSS variables for Dark/Light mode support
+        'rada-bg': 'var(--bg-page)',      // Main App Background
+        'rada-card': 'var(--bg-card)',    // Card/Panel Background
+        'rada-text': 'var(--text-main)',  // Primary Text
+        'rada-muted': 'var(--text-muted)', // Secondary Text
+        'rada-border': 'var(--border)',   // Border Color
+
+        // Static Brand Colors (matching CSS hex codes)
+        'rada-green': '#10b981',   // Primary Brand (Emerald-500)
+        'rada-teal': '#14b8a6',    // Secondary Accents
+        'rada-blue': '#3b82f6',    // Cashier/Info (Blue-500)
+        'rada-orange': '#f59e0b',  // Admin/Warning (Amber-500)
+        'rada-red': '#ef4444',     // Danger/Error (Red-500)
+
+        // Specific Dark Mode Shades (for loading screens/fallbacks)
+        'rada-void': '#0b0e11',    // Deep Dark Background
+        'rada-surface': '#11141a', // Slightly Lighter Panel
       },
       fontFamily: {
-        'sans': ['Inter', 'system-ui', 'sans-serif'],
+        'sans': ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+        'mono': ['"JetBrains Mono"', 'Fira Code', 'monospace'],
       },
+      borderRadius: {
+        'rada': '1.25rem',
+        'xl': '1rem',
+        '2xl': '1.5rem',
+        '3xl': '2rem',
+      },
+      boxShadow: {
+        'glass': '0 4px 30px rgba(0, 0, 0, 0.1)',
+        'glow': '0 0 20px rgba(16, 185, 129, 0.15)', // Green Glow
+      }
     },
   },
   plugins: [],
 }
-

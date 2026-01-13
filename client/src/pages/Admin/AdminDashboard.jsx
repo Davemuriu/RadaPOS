@@ -1,190 +1,252 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Calendar, ChevronDown, ChevronRight, Loader2, Play } from 'lucide-react';
-import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  TrendingUp, Users, Wallet, Activity, ArrowUpRight, Clock, Award, RefreshCcw,
+  Sun, Moon
+} from 'lucide-react';
+import '../../styles/Admin/AdminDashboard.css';
 
 export default function AdminDashboard() {
-  const navigate = useNavigate();
+  const [graphData, setGraphData] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Filter States
-  const [dateFilter, setDateFilter] = useState('All');
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
-  // Reusable fetch function
-  const fetchDashboardData = useCallback(async (isCustom = false) => {
-    setLoading(true);
+  const token = localStorage.getItem('access_token');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  const fetchDashboardData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
+    setIsSyncing(true);
+
     try {
-      let url = `http://localhost:5555/api/admin/stats?period=${dateFilter.toLowerCase().replace(' ', '_')}`;
-      
-      if (isCustom || dateFilter === 'Custom') {
-        url = `http://localhost:5555/api/admin/stats?period=custom&start=${startDate.toISOString()}&end=${endDate.toISOString()}`;
-      }
-      
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Backend connection failed");
-      const data = await response.json();
-      setStats(data);
-      setError(null);
+      const [graphRes, statsRes] = await Promise.all([
+        fetch('http://localhost:5555/api/admin/dashboard/graph', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('http://localhost:5555/api/admin/stats', { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+
+      const graph = await graphRes.json();
+      const statistics = await statsRes.json();
+
+      setGraphData(Array.isArray(graph) ? graph : []);
+      setStats(statistics);
+      setLastUpdated(new Date());
     } catch (err) {
-      setError(err.message);
+      console.error("Dashboard sync error:", err);
     } finally {
       setLoading(false);
+      setIsSyncing(false);
     }
-  }, [dateFilter, startDate, endDate]);
+  }, [token]);
 
-  // Auto-fetch for presets, but NOT for custom
   useEffect(() => {
-    if (dateFilter !== 'Custom') {
-      fetchDashboardData();
-    }
-  }, [dateFilter]);
-
-  if (loading && !stats) return (
-    <div className="p-20 text-center text-white bg-[#0B0E11] min-h-screen">
-      <Loader2 className="animate-spin mx-auto mb-4 text-blue-500" size={40} />
-      <p>Fetching RadaPOS Analytics...</p>
-    </div>
-  );
+    fetchDashboardData();
+    const interval = setInterval(() => fetchDashboardData(true), 60000);
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
 
   return (
-    <div className="p-8 text-white bg-[#0B0E11] min-h-screen font-sans">
-      
-      {/* Header & Advanced Filter UI */}
-      <div className="flex justify-between items-center mb-10">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Platform Overview</h1>
-          <p className="text-gray-400 text-sm">Real-time collections and earnings monitoring</p>
+    <div className="dashboard-container">
+      <div className="dashboard-header">
+        <div className="header-left">
+          <h1 className="dashboard-title">Executive Dashboard</h1>
+          <p className="dashboard-subtitle">Real-time platform performance & analytics</p>
         </div>
 
-        <div className="flex gap-3 relative">
-          {dateFilter === 'Custom' && (
-            <div className="flex items-center gap-2 bg-[#1A1F26] px-3 py-1.5 rounded-xl border border-blue-500/30 text-xs">
-              <DatePicker selected={startDate} onChange={d => setStartDate(d)} className="bg-transparent w-20 outline-none cursor-pointer" />
-              <span className="text-gray-600">to</span>
-              <DatePicker selected={endDate} onChange={d => setEndDate(d)} className="bg-transparent w-20 outline-none cursor-pointer" />
-              <button 
-                onClick={() => fetchDashboardData(true)}
-                className="ml-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1 rounded-lg flex items-center gap-1 transition-all"
-              >
-                <Play size={10} fill="currentColor" /> RUN
-              </button>
-            </div>
-          )}
-
-          <button 
-            onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-            className="flex items-center gap-2 bg-[#11141A] border border-gray-800 px-4 py-2 rounded-xl text-sm hover:border-gray-600 transition-all"
-          >
-            <Calendar size={16} className="text-blue-400" /> {dateFilter} <ChevronDown size={14} />
+        <div className="dashboard-actions">
+          {/* Theme Toggle */}
+          <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Toggle Theme">
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          
-          {showFilterDropdown && (
-            <div className="absolute right-0 mt-12 w-44 bg-[#1A2026] border border-gray-800 rounded-xl z-50 shadow-2xl">
-              {['All', 'This Week', 'This Month', 'This Year', 'Custom'].map(opt => (
-                <button 
-                  key={opt} 
-                  onClick={() => {setDateFilter(opt); setShowFilterDropdown(false)}} 
-                  className="w-full text-left px-4 py-3 hover:bg-blue-600/20 text-sm first:rounded-t-xl last:rounded-b-xl"
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
-          )}
+
+          {/* Refresh Status */}
+          <div className="refresh-pill">
+            <RefreshCcw size={14} className={isSyncing ? "animate-spin" : ""} />
+            <span>{lastUpdated.toLocaleTimeString()}</span>
+          </div>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-        <StatCard title="Total Collections" value={`KES ${((stats?.total_collections || 0)/1000000).toFixed(1)}M`} subtitle={`Period: ${dateFilter}`} color="border-blue-500/20" />
-        <StatCard title="Total Earnings" value={`KES ${((stats?.total_earnings || 0)/1000).toFixed(1)}K`} subtitle="Net Commission" color="border-purple-500/20" />
-        <StatCard title="Total Vendors" value={stats?.total_vendors} subtitle="Active Network" />
-        <StatCard title="Pending Withdrawals" value={stats?.pending_withdrawals_count} highlight color="border-orange-500/20" subtitle="Awaiting Action" />
-      </div>
-
-      {/* Grouped Recent Transactions Container */}
-      <div className="bg-[#11141A] rounded-3xl border border-gray-800 p-8">
-        <div className="flex justify-between items-center mb-10 pb-4 border-b border-gray-800/50">
-          <h2 className="text-xl font-bold">Recent Transactions</h2>
-          <span className="text-[10px] text-gray-500 uppercase tracking-[0.3em] font-black">Live Updates</span>
+      {/* Stats Grid */}
+      <div className="dashboard-grid">
+        <div className="stat-card">
+          <div className="stat-content">
+            <span className="stat-label">Total Revenue</span>
+            <h2 className="stat-number">KES {(stats?.total_collections || 0).toLocaleString()}</h2>
+          </div>
+          <div className="stat-icon revenue">
+            <Wallet size={24} />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Recent Events Section */}
-          <TransactionSection title="Recent Events" onAction={() => navigate('/admin/events')}>
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#0B0E11] text-gray-500 uppercase text-[10px] tracking-widest">
-                <tr><th className="p-4">Event</th><th className="p-4">Region</th><th className="p-4 text-right">Vendors</th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {Array.isArray(stats?.active_events) ? stats.active_events.slice(0, 10).map(e => (
-                  <tr key={e.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-4 font-medium text-gray-200">{e.name}</td>
-                    <td className="p-4 text-gray-400">{e.region}</td>
-                    <td className="p-4 text-right font-mono text-gray-400">{e.vendors_count}</td>
-                  </tr>
-                )) : null}
-              </tbody>
-            </table>
-          </TransactionSection>
+        <div className="stat-card">
+          <div className="stat-content">
+            <span className="stat-label">Platform Earnings</span>
+            <h2 className="stat-number highlight">KES {(stats?.total_earnings || 0).toLocaleString()}</h2>
+          </div>
+          <div className="stat-icon earnings">
+            <TrendingUp size={24} />
+          </div>
+        </div>
 
-          {/* Recent Withdrawals Section */}
-          <TransactionSection title="Withdrawal Requests" onAction={() => navigate('/admin/vendors')}>
-            <table className="w-full text-left text-sm">
-              <thead className="bg-[#0B0E11] text-gray-500 uppercase text-[10px] tracking-widest">
-                <tr><th className="p-4">Vendor</th><th className="p-4">Amount</th><th className="p-4 text-center">Status</th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {Array.isArray(stats?.recent_withdrawals) ? stats.recent_withdrawals.slice(0, 10).map(w => (
-                  <tr key={w.id} className="hover:bg-white/5 transition-colors">
-                    <td className="p-4 font-medium">{w.vendor_name}</td>
-                    <td className="p-4 text-blue-400 font-bold">KES {w.amount.toLocaleString()}</td>
-                    <td className="p-4 text-center">
-                      <span className="text-[10px] bg-orange-500/10 text-orange-500 px-2 py-1 rounded font-black border border-orange-500/20 uppercase">
-                        {w.status}
+        <div className="stat-card">
+          <div className="stat-content">
+            <span className="stat-label">Active Vendors</span>
+            <h2 className="stat-number">{stats?.total_vendors || 0}</h2>
+          </div>
+          <div className="stat-icon vendors">
+            <Users size={24} />
+          </div>
+        </div>
+      </div>
+
+      <div className="analytics-layout">
+        {/* Chart Section */}
+        <div className="glass-panel chart-panel">
+          <div className="panel-header">
+            <div className="header-icon"><Activity size={18} /></div>
+            <h3>Sales Volume (Last 7 Days)</h3>
+          </div>
+
+          <div className="chart-container">
+            {!loading && graphData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={graphData}>
+                  <defs>
+                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={theme === 'dark' ? '#10b981' : '#059669'} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={theme === 'dark' ? '#10b981' : '#059669'} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="var(--text-muted)"
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="var(--text-muted)"
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `KES ${value}`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '12px',
+                      color: 'var(--text-main)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                    }}
+                    itemStyle={{ color: 'var(--text-main)' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="sales"
+                    stroke={theme === 'dark' ? '#10b981' : '#059669'}
+                    strokeWidth={3}
+                    fillOpacity={1}
+                    fill="url(#colorSales)"
+                    isAnimationActive={!isSyncing}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="empty-state">
+                <p>{loading ? 'Synchronizing data...' : 'No sales activity recorded.'}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Top Vendors */}
+        <div className="glass-panel vendors-panel">
+          <div className="panel-header">
+            <Award size={18} className="text-yellow" />
+            <h3>Top Performing Vendors</h3>
+          </div>
+          <div className="list-container">
+            {stats?.active_events?.length > 0 ? (
+              stats.active_events.slice(0, 5).map((vendor, idx) => (
+                <div key={idx} className="list-item">
+                  <div className="item-left">
+                    <div className="rank-circle">{idx + 1}</div>
+                    <div className="item-details">
+                      <p className="item-title">{vendor.name}</p>
+                      <p className="item-sub">ID: {vendor.created_by}</p>
+                    </div>
+                  </div>
+                  <div className="item-right">
+                    <p className="item-value">{vendor.vendors_count || 0}</p>
+                    <p className="item-label">Events</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state-text">No active data available.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="glass-panel activity-panel">
+        <div className="panel-header">
+          <Clock size={18} className="text-green" />
+          <h3>Recent Withdrawals & Activity</h3>
+        </div>
+        <div className="table-responsive">
+          <table className="styled-table">
+            <thead>
+              <tr>
+                <th>Reference ID</th>
+                <th>Vendor</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats?.recent_withdrawals?.length > 0 ? (
+                stats.recent_withdrawals.map((item, idx) => (
+                  <tr key={idx}>
+                    <td className="font-mono text-primary">#WTH-{item.id}</td>
+                    <td className="font-bold">{item.vendor_name}</td>
+                    <td className="font-bold">KES {item.amount.toLocaleString()}</td>
+                    <td>
+                      <span className={`status-badge ${item.status.toLowerCase()}`}>
+                        {item.status}
                       </span>
                     </td>
+                    <td>
+                      <button className="action-btn">
+                        Details <ArrowUpRight size={14} />
+                      </button>
+                    </td>
                   </tr>
-                )) : null}
-              </tbody>
-            </table>
-          </TransactionSection>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="text-center py-8 text-muted">No recent activities found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// Visual Sub-components
-function StatCard({ title, value, subtitle, color, highlight }) {
-  return (
-    <div className={`bg-[#11141A] p-6 rounded-2xl border ${color || 'border-gray-800'} flex flex-col justify-between h-40`}>
-      <p className="text-gray-400 text-[10px] uppercase font-bold tracking-widest">{title}</p>
-      <div>
-        <p className={`text-3xl font-bold ${highlight ? 'text-orange-500' : 'text-white'}`}>{value}</p>
-        <p className="text-[10px] text-gray-500 mt-1 uppercase font-medium">{subtitle}</p>
-      </div>
-    </div>
-  );
-}
-
-function TransactionSection({ title, children, onAction }) {
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">{title}</h3>
-        <button onClick={onAction} className="text-[10px] text-blue-400 font-bold flex items-center hover:text-blue-300 transition-colors uppercase">
-          Full Report <ChevronRight size={14}/>
-        </button>
-      </div>
-      <div className="overflow-hidden rounded-xl border border-gray-800/50 bg-[#0B0E11]/30">
-        {children}
       </div>
     </div>
   );

@@ -1,108 +1,138 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
-from app.utils.mpesa import mpesa
-from app import db
 from app.models.transaction import Sale, SaleItem, MpesaPayment
+from app.models.product import Product
+from app.models.user import User
+from app.extensions import db
+from datetime import datetime
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
-transaction_bp = Blueprint("transaction", __name__)
+transaction_bp = Blueprint('transaction_bp', __name__)
 
-@transaction_bp.route('/stk-push', methods=['POST'])
-@jwt_required()
-def trigger_stk_push():
+# MPESA CALLBACK
+@transaction_bp.route('/mpesa/callback', methods=['POST'])
+def mpesa_callback():
+    """Handles Safaricom STK Push results"""
     data = request.get_json()
-    phone_number = data.get('phone_number')
-    amount = data.get('amount')
     
-    if not phone_number or not amount:
-        return jsonify({"error": "Phone number and amount are required"}), 400
+    callback_data = data.get('Body', {}).get('stkCallback', {})
+    result_code = callback_data.get('ResultCode')
+    checkout_id = callback_data.get('CheckoutRequestID')
 
-    response = mpesa.stk_push(phone_number, amount)
+    payment = MpesaPayment.query.filter_by(checkout_request_id=checkout_id).first()
     
-    if "errorCode" in response:
-        return jsonify(response), 400
+    if not payment:
+        return jsonify({"ResultCode": 1, "ResultDesc": "Ignored"}), 200
+
+    if result_code == 0:
+        payment.result_code = 0
+        payment.result_desc = "Success"
         
-    return jsonify(response), 200
+        # Extract Receipt Number
+        metadata = callback_data.get('CallbackMetadata', {}).get('Item', [])
+        for item in metadata:
+            if item['Name'] == 'MpesaReceiptNumber':
+                payment.mpesa_receipt_number = item['Value']
 
+        if payment.parent_sale:
+            payment.parent_sale.status = 'COMPLETED'
+    else:
+        payment.result_code = result_code
+        payment.result_desc = callback_data.get('ResultDesc', 'Failed')
+        if payment.parent_sale:
+            payment.parent_sale.status = 'FAILED'
 
-@transaction_bp.route("/checkout", methods=["POST"])
+    db.session.commit()
+    return jsonify({"ResultCode": 0, "ResultDesc": "Success"}), 200
+
+# GET TRANSACTIONS
+@transaction_bp.route('/', methods=['GET'])
 @jwt_required()
-def checkout():
-    data = request.get_json()
-    user_id = get_jwt_identity()
-
-    if not data:
-        return jsonify({"msg": "Request body is required"}), 400
-
-    items = data.get("items")
-    payment_method = data.get("payment_method", "OFFLINE")
-
-    if not items or not isinstance(items, list):
-        return jsonify({"msg": "Items must be a non-empty list"}), 400
-
-    total = 0
+def get_transactions():
     try:
-        for item in items:
-            price = float(item["price"])
-            qty = int(item["qty"])
-            if price < 0 or qty <= 0:
-                raise ValueError
-            total += price * qty
-    except (KeyError, TypeError, ValueError):
-        return jsonify({"msg": "Invalid item format"}), 400
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
 
-    sale = Sale(
-        vendor_id=user_id,
-        total=total,
-        is_offline=(payment_method == "OFFLINE"),
-        created_at=datetime.utcnow()
-    )
+        # Multi-Tenancy Logic
+        if user.role.upper() in ['ADMIN', 'ADMINISTRATOR']:
+            sales = Sale.query.order_by(Sale.created_at.desc()).all()
+        elif user.role.upper() == 'VENDOR':
+            # Vendors see sales made by themselves AND their cashiers
+            # We filter by User.parent_id if you have that, 
+            # or by all sales linked to this vendor's business
+            sales = Sale.query.join(User, Sale.cashier_id == User.id)\
+                .filter((User.id == current_user_id) | (User.parent_id == current_user_id))\
+                .order_by(Sale.created_at.desc()).all()
+        else:
+            sales = Sale.query.filter_by(cashier_id=current_user_id).order_by(Sale.created_at.desc()).all()
+        
+        return jsonify([{
+            "id": s.id,
+            "total_amount": s.total_amount,
+            "payment_method": s.payment_method,
+            "status": s.status,
+            "created_at": s.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "cashier_name": s.cashier.name if s.cashier else "Unknown",
+            "items_count": len(s.items)
+        } for s in sales]), 200
+    except Exception as e:
+        print(f"Fetch Error: {e}")
+        return jsonify({"msg": "Failed to fetch transactions"}), 500
 
+# CREATE TRANSACTION
+@transaction_bp.route('/', methods=['POST'])
+@jwt_required()
+def create_transaction():
     try:
-        db.session.add(sale)
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        cart_items = data.get('items', [])
+        payment_method = data.get('payment_method', 'CASH')
+        
+        if not cart_items:
+            return jsonify({"msg": "Cart is empty"}), 400
+
+        total_amount = 0
+        new_sale = Sale(
+            payment_method=payment_method,
+            status='PENDING' if payment_method == 'MPESA' else 'COMPLETED',
+            cashier_id=current_user_id,
+            created_at=datetime.utcnow()
+        )
+        
+        # Temporarily add to session to get ID
+        db.session.add(new_sale)
         db.session.flush()
 
-        for item in items:
-            sale_item = SaleItem(
-                sale_id=sale.id,
-                product_name=item.get("name", "Unknown Item"), 
-                quantity=int(item["qty"]),
-                price=float(item["price"])
-            )
-            db.session.add(sale_item)
+        for item in cart_items:
+            product = Product.query.get(item['id'])
+            if not product or product.stock_quantity < item['quantity']:
+                db.session.rollback()
+                return jsonify({"msg": f"Stock error for {product.name if product else 'item'}"}), 400
+            
+            product.stock_quantity -= item['quantity']
+            line_total = product.price * item['quantity']
+            total_amount += line_total
+            
+            db.session.add(SaleItem(
+                sale_id=new_sale.id,
+                product_id=product.id,
+                product_name=product.name,
+                quantity=item['quantity'],
+                price=product.price
+            ))
 
+        new_sale.total_amount = total_amount
         db.session.commit()
+
+        return jsonify({
+            "msg": "Transaction processed", 
+            "sale_id": new_sale.id,
+            "total": total_amount,
+            "status": new_sale.status
+        }), 201
+
     except Exception as e:
         db.session.rollback()
-        print(f"Error recording transaction: {e}")
-        return jsonify({"msg": "Failed to record transaction"}), 500
-
-    return jsonify({
-        "message": "Checkout successful",
-        "transaction_id": sale.id,
-        "total": sale.total,
-        "offline": sale.is_offline,
-        "timestamp": sale.created_at.isoformat()
-    }), 201
-
-
-@transaction_bp.route("/vendor/<int:vendor_id>", methods=["GET"])
-@jwt_required()
-def get_vendor_transactions(vendor_id):
-
-    transactions = (
-        Sale.query
-        .filter_by(vendor_id=vendor_id)
-        .order_by(Sale.created_at.desc())
-        .all()
-    )
-
-    return jsonify([
-        {
-            "id": tx.id,
-            "total": tx.total,
-            "offline": tx.is_offline,
-            "created_at": tx.created_at.isoformat()
-        }
-        for tx in transactions
-    ]), 200
+        print(f"Transaction Error: {e}")
+        return jsonify({"msg": "Transaction failed"}), 500
