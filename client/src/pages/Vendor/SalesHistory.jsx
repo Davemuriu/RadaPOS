@@ -1,21 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import {
-    Search, Calendar, ChevronRight, Receipt, User,
-    ShoppingBag, Clock, Loader2, FileText, Sun, Moon,
-    CheckCircle, XCircle
+    Search, Download, Trash2, Sun, Moon,
+    CheckCircle, XCircle, Clock, DollarSign, Smartphone, FileText, File
 } from 'lucide-react';
 import '../../styles/Vendor/VendorManagement.css';
-import '../../styles/Admin/AdminDashboard.css';
 
 const SalesHistory = () => {
     const [sales, setSales] = useState([]);
-    const [filteredSales, setFilteredSales] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedSale, setSelectedSale] = useState(null);
+    const [filterDate, setFilterDate] = useState('');
+    const [userRole, setUserRole] = useState('');
 
-    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -26,31 +24,57 @@ const SalesHistory = () => {
         setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     };
 
-    const fetchHistory = async () => {
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                setUserRole(payload.role?.toUpperCase() || '');
+            } catch (e) { console.error("Token decode error:", e); }
+        }
+        fetchSales();
+    }, []);
+
+    const fetchSales = async () => {
         try {
-            const res = await api.get('/mpesa/history');
+            const res = await api.get('/transactions/');
             setSales(res.data);
-            setFilteredSales(res.data);
-            if (res.data.length > 0) setSelectedSale(res.data[0]);
+            setLoading(false);
         } catch (error) {
-            console.error("Error fetching sales history:", error);
-        } finally {
+            console.error("Error fetching sales:", error);
             setLoading(false);
         }
     };
 
-    useEffect(() => { fetchHistory(); }, []);
+    // --- CSV EXPORT ---
+    const handleDownloadCSV = async () => {
+        try {
+            const response = await api.get('/transactions/export', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Sales_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+        } catch (error) { alert("Failed to download CSV report"); }
+    };
 
-    useEffect(() => {
-        const lowerTerm = searchTerm.toLowerCase();
-        const filtered = sales.filter(s =>
-            s.id.toString().includes(lowerTerm) ||
-            s.cashier_name?.toLowerCase().includes(lowerTerm)
-        );
-        setFilteredSales(filtered);
-    }, [searchTerm, sales]);
+    const handleDownloadPDF = async () => {
+        try {
+            const response = await api.get('/vendor/reports/export-pdf', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Sales_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+        } catch (error) {
+            console.error(error);
+            alert("Failed to download PDF report");
+        }
+    };
 
-    const downloadReceipt = async (saleId) => {
+    const handleDownloadReceipt = async (saleId) => {
         try {
             const response = await api.get(`/mpesa/receipt/${saleId}`, { responseType: 'blob' });
             const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -59,162 +83,138 @@ const SalesHistory = () => {
             link.setAttribute('download', `Receipt_${saleId}.pdf`);
             document.body.appendChild(link);
             link.click();
-        } catch (error) {
-            alert("Receipt generation failed.");
+        } catch (error) { alert("Could not download receipt"); }
+    };
+
+    const handleDelete = async (saleId) => {
+        if (!window.confirm("Are you sure? This affects stock and reports.")) return;
+        try {
+            await api.delete(`/mpesa/sale/${saleId}`);
+            setSales(sales.filter(s => s.id !== saleId));
+            alert("Record deleted.");
+        } catch (error) { alert("Delete failed."); }
+    };
+
+    const filteredSales = sales.filter(sale => {
+        const matchesSearch = sale.cashier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            sale.id.toString().includes(searchTerm);
+        const matchesDate = filterDate ? sale.created_at.startsWith(filterDate) : true;
+        return matchesSearch && matchesDate;
+    });
+
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    };
+
+    const getStatusBadge = (status) => {
+        switch (status?.toUpperCase()) {
+            case 'COMPLETED': return <span className="status-badge completed"><CheckCircle size={14} /> Paid</span>;
+            case 'PENDING': return <span className="status-badge pending"><Clock size={14} /> Pending</span>;
+            case 'FAILED': return <span className="status-badge failed"><XCircle size={14} /> Failed</span>;
+            default: return <span className="status-badge">{status}</span>;
         }
     };
 
-    if (loading) return (
-        <div className="management-container flex items-center justify-center">
-            <div className="text-center">
-                <Loader2 className="animate-spin mb-4 text-emerald mx-auto" size={40} />
-                <p className="text-muted font-bold uppercase tracking-widest">Loading Ledger...</p>
-            </div>
-        </div>
-    );
-
     return (
         <div className="management-container">
-            {/* Header */}
             <div className="management-header">
                 <div>
-                    <h1 className="page-title">Sales Ledger</h1>
-                    <p className="page-subtitle">Review all completed and pending transactions</p>
+                    <h1 className="page-title">Sales History</h1>
+                    <p className="page-subtitle">Transaction records & receipts</p>
                 </div>
-                <div className="header-actions">
-                    <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Toggle Theme">
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="theme-toggle" onClick={toggleTheme} title="Toggle Theme">
                         {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
+
+                    <button className="btn-white" onClick={handleDownloadPDF} title="Download Summary PDF">
+                        <FileText size={18} /> PDF Report
+                    </button>
+
+                    <button className="btn-primary" onClick={handleDownloadCSV} title="Export Data CSV">
+                        <Download size={18} /> Export CSV
                     </button>
                 </div>
             </div>
 
-            {/* Split View Content */}
-            <div className="history-split-view">
-                {/* Left Side: Sales List */}
-                <div className="glass-panel list-section">
-                    <div className="action-bar">
-                        <div className="search-wrapper w-full">
-                            <Search size={18} className="search-icon" />
-                            <input
-                                type="text"
-                                className="search-input"
-                                placeholder="Search by Ref ID or Cashier..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
+            <div className="glass-panel">
+                <div className="filter-bar">
+                    <div className="search-wrapper">
+                        <Search size={18} className="search-icon" />
+                        <input
+                            type="text" className="search-input"
+                            placeholder="Search ID or Cashier..."
+                            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
-
-                    <div className="table-responsive" style={{ maxHeight: '600px' }}>
-                        <table className="styled-table">
-                            <thead>
-                                <tr>
-                                    <th>Ref ID</th>
-                                    <th>Time</th>
-                                    <th>Cashier</th>
-                                    <th>Total</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredSales.map((sale) => (
-                                    <tr
-                                        key={sale.id}
-                                        onClick={() => setSelectedSale(sale)}
-                                        className={selectedSale?.id === sale.id ? 'active-row' : 'clickable-row'}
-                                    >
-                                        <td className="font-mono text-xs text-primary">#{sale.id}</td>
-                                        <td>
-                                            <div className="flex-col">
-                                                <span className="font-medium text-main">{new Date(sale.created_at).toLocaleDateString()}</span>
-                                                <span className="text-xs text-muted">{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div className="flex items-center gap-2 text-sm text-main">
-                                                <User size={14} className="text-muted" /> {sale.cashier_name}
-                                            </div>
-                                        </td>
-                                        <td className="font-bold text-main">KES {sale.total_amount.toLocaleString()}</td>
-                                        <td>
-                                            <span className={`status-badge ${sale.status.toLowerCase() === 'completed' ? 'completed' : 'failed'}`}>
-                                                {sale.status}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {filteredSales.length === 0 && (
-                                    <tr><td colSpan="5" className="empty-row">No transactions found.</td></tr>
-                                )}
-                            </tbody>
-                        </table>
+                    <div className="date-wrapper">
+                        <input
+                            type="date"
+                            value={filterDate} onChange={(e) => setFilterDate(e.target.value)}
+                        />
                     </div>
                 </div>
 
-                {/* Right Side: Details Panel */}
-                <div className="glass-panel detail-section">
-                    {selectedSale ? (
-                        <div className="detail-content">
-                            <div className="panel-header mb-6">
-                                <div className="header-icon"><Receipt size={18} className="text-emerald" /></div>
-                                <h3>Transaction Details</h3>
-                            </div>
+                <div className="table-responsive">
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: '60px' }}>ID</th>
+                                <th style={{ width: '140px' }}>Date</th>
+                                <th style={{ width: '120px' }}>Cashier</th>
+                                <th style={{ width: '90px' }}>Method</th>
+                                <th>Breakdown</th>
+                                <th style={{ width: '100px' }}>Total</th>
+                                <th style={{ width: '90px' }}>Status</th>
+                                <th style={{ width: '80px', textAlign: 'center' }}>Docs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan="8" className="text-center">Loading...</td></tr>
+                            ) : filteredSales.length === 0 ? (
+                                <tr><td colSpan="8" className="text-center">No sales found</td></tr>
+                            ) : (
+                                filteredSales.map(sale => (
+                                    <tr key={sale.id}>
+                                        <td className="font-mono">#{sale.id}</td>
+                                        <td style={{ fontSize: '0.85rem' }}>{formatDate(sale.created_at)}</td>
+                                        <td>{sale.cashier_name}</td>
+                                        <td><span className={`method-badge ${sale.payment_method?.toLowerCase()}`}>{sale.payment_method}</span></td>
 
-                            <div className="detail-card-inner">
-                                <div className="flex justify-between items-center mb-6">
-                                    <span className="text-muted text-sm">Status</span>
-                                    <span className={`status-badge ${selectedSale.status.toLowerCase() === 'completed' ? 'completed' : 'failed'}`}>
-                                        {selectedSale.status}
-                                    </span>
-                                </div>
+                                        <td style={{ fontSize: '0.85rem' }}>
+                                            {sale.payment_method === 'SPLIT' ? (
+                                                <div className="split-breakdown">
+                                                    <span className="text-cash"><DollarSign size={12} /> {sale.amount_cash?.toLocaleString()}</span>
+                                                    <span className="text-mpesa"><Smartphone size={12} /> {sale.amount_mpesa?.toLocaleString()}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted">-</span>
+                                            )}
+                                        </td>
 
-                                <div className="detail-grid">
-                                    <div className="detail-item">
-                                        <Clock size={14} className="text-muted" />
-                                        <span>{new Date(selectedSale.created_at).toLocaleString()}</span>
-                                    </div>
-                                    <div className="detail-item">
-                                        <FileText size={14} className="text-muted" />
-                                        <span>Method: {selectedSale.payment_method}</span>
-                                    </div>
-                                </div>
+                                        <td className="font-bold">KES {sale.total_amount.toLocaleString()}</td>
+                                        <td>{getStatusBadge(sale.status)}</td>
 
-                                <div className="divider my-6"></div>
-
-                                <h4 className="text-sm font-bold text-muted uppercase tracking-wider mb-4">Items Sold</h4>
-                                <div className="items-list">
-                                    {selectedSale.items.map((item, idx) => (
-                                        <div key={idx} className="item-row">
-                                            <div className="flex-col">
-                                                <span className="text-main font-bold">{item.product_name}</span>
-                                                <span className="text-xs text-muted">x{item.quantity}</span>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <div className="flex justify-center gap-2">
+                                                <button className="icon-btn" onClick={() => handleDownloadReceipt(sale.id)} title="Receipt">
+                                                    <FileText size={16} />
+                                                </button>
+                                                {userRole === 'VENDOR' && (
+                                                    <button className="icon-btn delete" onClick={() => handleDelete(sale.id)} style={{ color: '#ef4444' }} title="Delete">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
                                             </div>
-                                            <span className="text-main font-mono">KES {(item.price * item.quantity).toLocaleString()}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="divider my-6"></div>
-
-                                <div className="total-row flex justify-between items-end mb-8">
-                                    <span className="text-muted">Total Value</span>
-                                    <span className="text-2xl font-black text-emerald">KES {selectedSale.total_amount.toLocaleString()}</span>
-                                </div>
-
-                                <button
-                                    className="btn-primary full-width"
-                                    onClick={() => downloadReceipt(selectedSale.id)}
-                                >
-                                    <Receipt size={16} /> Download Receipt
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="empty-state h-full flex flex-col items-center justify-center text-muted">
-                            <ShoppingBag size={48} className="mb-4 opacity-50" />
-                            <p>Select a transaction to view details</p>
-                        </div>
-                    )}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

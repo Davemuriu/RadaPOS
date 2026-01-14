@@ -10,65 +10,52 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False) 
     
-    # Staff/Security Logic
     must_change_password = db.Column(db.Boolean, default=False) 
     status = db.Column(db.String(20), default='active')
-
-    # Self-Referential Relationship for Staff Management
-    # This column links a Cashier/Staff member to the Vendor
     vendor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
-    # COMMON PROFILE FIELDS
     name = db.Column(db.String(100), nullable=True)
     phone_number = db.Column(db.String(20), nullable=True)
     id_number = db.Column(db.String(20), nullable=True) 
     profile_picture = db.Column(db.String(255), nullable=True) 
 
-    # VENDOR SPECIFIC BUSINESS DETAILS
     business_name = db.Column(db.String(150), nullable=True)
     business_address = db.Column(db.String(255), nullable=True)
     kra_pin = db.Column(db.String(50), nullable=True)
     business_permit_no = db.Column(db.String(50), nullable=True)
     
-    # VENDOR FINANCIAL DETAILS
     bank_name = db.Column(db.String(100), nullable=True)
     bank_account_number = db.Column(db.String(50), nullable=True)
     withdrawal_mpesa_number = db.Column(db.String(20), nullable=True)
     
-    # NEW FIELD FOR PAYOUT SIMULATION
     wallet_balance = db.Column(db.Float, default=0.0)
 
-    # NOTIFICATIONS
     notify_stock = db.Column(db.Boolean, default=True)
     notify_sales = db.Column(db.Boolean, default=False)
     notify_email = db.Column(db.Boolean, default=True)
 
+    reset_token = db.Column(db.String(10), nullable=True)
+    reset_token_expiry = db.Column(db.DateTime, nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relationships
     products = db.relationship('Product', backref='vendor', lazy=True)
     
-    # Backref 'employer' allows a cashier to access vendor info: user.employer
-    # Backref 'staff_members' allows a vendor to list employees: user.staff_members
     staff_members = db.relationship(
         'User', 
         backref=db.backref('employer', remote_side=[id]),
         lazy='dynamic'
     )
 
-    # AUTH METHODS
     def set_password(self, password_text):
         self.password = bcrypt.generate_password_hash(password_text).decode('utf-8')
 
     def check_password(self, password_candidate):
         return bcrypt.check_password_hash(self.password, password_candidate)
 
-    # SERIALIZATION
     def to_dict(self):
-        # Handle case where assigned_events might not be loaded yet
         current_ev_id = None
         if hasattr(self, 'assigned_events') and self.assigned_events:
-             # Assuming assigned_events is a relationship defined in Event model
              try:
                 current_ev_id = self.assigned_events[-1].id
              except (IndexError, AttributeError):

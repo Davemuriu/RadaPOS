@@ -6,6 +6,7 @@ from app.models.transaction import Sale
 from app.models.wallet import Settlement, Wallet
 from app.models.event import Event
 from app.models.audit import AuditLog
+from app.models.notification import Notification
 from app.extensions import db, bcrypt, mail
 from sqlalchemy import func
 import functools
@@ -36,7 +37,6 @@ def admin_required(fn):
     return wrapper
 
 def send_credentials_email(user, password, role_name):
-    """Utility to send credentials to new Vendors or Admins"""
     try:
         msg = Message(f"RadaPOS {role_name} Access Credentials", recipients=[user.email])
         msg.body = f"""
@@ -56,11 +56,11 @@ def send_credentials_email(user, password, role_name):
         print(f"Failed to send email to {user.email}: {e}")
         return False
 
+# STATS & GRAPHS
 @admin_bp.route('/dashboard/graph', methods=['GET'])
 @jwt_required()
 @admin_required
 def get_dashboard_graph():
-    """Returns sales volume for the last 7 days"""
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=7)
     
@@ -118,6 +118,120 @@ def get_admin_stats():
         "active_events": active_events_data
     }), 200
 
+# GLOBAL WALLET ROUTES
+@admin_bp.route('/wallet/stats', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_wallet_overview():
+    total_revenue = db.session.query(func.sum(Sale.total_amount)).filter_by(status='COMPLETED').scalar() or 0.0
+    platform_earnings = total_revenue * 0.10
+    
+    pending_withdrawals = db.session.query(func.sum(Settlement.amount))\
+        .filter(Settlement.status.in_(['pending', 'processing'])).scalar() or 0.0
+        
+    return jsonify({
+        "platform_earnings": float(platform_earnings),
+        "total_revenue": float(total_revenue),
+        "pending_withdrawals": float(pending_withdrawals)
+    }), 200
+
+@admin_bp.route('/wallet/withdrawals', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_all_withdrawals():
+    # Corrected JOIN: Uses Settlement.vendor_id explicitly
+    withdrawals = db.session.query(Settlement, User)\
+        .join(User, Settlement.vendor_id == User.id)\
+        .filter(Settlement.sale_id.is_(None))\
+        .order_by(Settlement.created_at.desc()).all()
+    
+    output = []
+    for w, u in withdrawals:
+        output.append({
+            "id": w.id,
+            "vendor_name": u.business_name if u.business_name else u.name,
+            "vendor_email": u.email,
+            "amount": float(w.amount),
+            "status": w.status,
+            "mpesa_number": u.phone_number,
+            "created_at": w.created_at.isoformat()
+        })
+    
+    return jsonify(output), 200
+
+@admin_bp.route('/wallet/withdrawals/<int:id>/approve', methods=['POST'])
+@jwt_required()
+@admin_required
+def approve_withdrawal(id):
+    try:
+        withdrawal = Settlement.query.get_or_404(id)
+        
+        if withdrawal.status != 'pending':
+            return jsonify({"msg": f"Withdrawal is already {withdrawal.status}"}), 400
+
+        withdrawal.status = 'completed'
+        withdrawal.processed_at = datetime.utcnow()
+        
+        # Notify Vendor
+        notif = Notification(
+            user_id=withdrawal.vendor_id, 
+            message=f"Your withdrawal of KES {withdrawal.amount:,.2f} has been Approved and Processed.", 
+            type="success"
+        )
+        db.session.add(notif)
+        
+        db.session.commit()
+        
+        log_admin_action(
+            get_jwt_identity(), 
+            "Approved Withdrawal", 
+            f"ID: {id} | Amount: {withdrawal.amount}"
+        )
+        
+        return jsonify({"msg": "Withdrawal approved successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Approval failed", "error": str(e)}), 500
+
+@admin_bp.route('/wallet/withdrawals/<int:id>/reject', methods=['POST'])
+@jwt_required()
+@admin_required
+def reject_withdrawal(id):
+    try:
+        withdrawal = Settlement.query.get_or_404(id)
+        
+        if withdrawal.status != 'pending':
+            return jsonify({"msg": "Only pending withdrawals can be rejected"}), 400
+
+        # Refund Logic
+        vendor_wallet = Wallet.query.filter_by(vendor_id=withdrawal.vendor_id).first()
+        if vendor_wallet:
+            vendor_wallet.current_balance += withdrawal.amount
+        
+        withdrawal.status = 'rejected'
+        
+        # Notify Vendor
+        notif = Notification(
+            user_id=withdrawal.vendor_id, 
+            message=f"Your withdrawal of KES {withdrawal.amount:,.2f} was Rejected. Funds returned to wallet.", 
+            type="error"
+        )
+        db.session.add(notif)
+        
+        db.session.commit()
+        
+        log_admin_action(
+            get_jwt_identity(), 
+            "Rejected Withdrawal", 
+            f"ID: {id}"
+        )
+        
+        return jsonify({"msg": "Withdrawal rejected and funds returned"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Rejection failed", "error": str(e)}), 500
+
+# USER & EVENT MANAGEMENT
 @admin_bp.route('/events', methods=['GET', 'POST'])
 @jwt_required()
 @admin_required
@@ -188,7 +302,6 @@ def manage_vendors_root():
         if User.query.filter_by(email=data['email']).first():
             return jsonify({"msg": "Email already exists"}), 400
 
-        # Generate Secure Password
         temp_pw = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
         
         new_vendor = User(
@@ -229,24 +342,19 @@ def manage_single_vendor(id):
     if request.method == 'PUT':
         try:
             data = request.get_json()
-            
-            # 1. EMAIL UNIQUE CHECK 
             new_email = data.get('email')
             if new_email and new_email != vendor.email:
-                # Check if this email is taken by ANY OTHER user
                 existing_user = User.query.filter(User.email == new_email, User.id != id).first()
                 if existing_user:
-                    return jsonify({"msg": "Email already exists on another account"}), 400
+                    return jsonify({"msg": "Email already exists"}), 400
                 vendor.email = new_email
 
-            # 2. Update basic info (only if provided)
             vendor.name = data.get('name', vendor.name)
             vendor.phone_number = data.get('phone', vendor.phone_number)
             vendor.business_name = data.get('business_name', vendor.business_name)
             vendor.kra_pin = data.get('kra_pin', vendor.kra_pin)
             vendor.business_permit_no = data.get('business_permit_no', vendor.business_permit_no)
             
-            # 3. Handle Event Re-assignment
             if 'event_id' in data and data['event_id']:
                 new_event = Event.query.get(data['event_id'])
                 if new_event:
@@ -255,12 +363,28 @@ def manage_single_vendor(id):
             db.session.commit()
             log_admin_action(get_jwt_identity(), "Edited Vendor", f"ID: {id}")
             return jsonify({"msg": "Vendor updated successfully"}), 200
-            
         except Exception as e:
             db.session.rollback()
-            print(f"Update Vendor Error: {str(e)}")
-            return jsonify({"msg": "Server error during update", "error": str(e)}), 500
-        
+            return jsonify({"msg": "Server error", "error": str(e)}), 500
+
+@admin_bp.route('/vendors/<int:id>/reset-password', methods=['POST'])
+@jwt_required()
+@admin_required
+def reset_vendor_password(id):
+    vendor = User.query.get_or_404(id)
+    if vendor.role != 'VENDOR': return jsonify({"msg": "Action allowed for vendors only"}), 400
+    try:
+        temp_pw = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
+        vendor.set_password(temp_pw)
+        vendor.must_change_password = True 
+        db.session.commit()
+        send_credentials_email(vendor, temp_pw, "Vendor (Password Reset)")
+        log_admin_action(get_jwt_identity(), "Reset Vendor Password", f"Vendor: {vendor.email}")
+        return jsonify({"msg": "Password reset successful"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"msg": "Failed to reset password"}), 500
+
 @admin_bp.route('/users', methods=['GET', 'POST'])
 @jwt_required()
 @admin_required
@@ -271,9 +395,7 @@ def manage_admins_root():
 
     if request.method == 'POST':
         data = request.get_json()
-        if User.query.filter_by(email=data['email']).first():
-            return jsonify({"msg": "User already exists"}), 400
-
+        if User.query.filter_by(email=data['email']).first(): return jsonify({"msg": "User already exists"}), 400
         temp_pw = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
         new_user = User(
             name=data['name'], email=data['email'], role=data['role'].upper(),
@@ -282,55 +404,21 @@ def manage_admins_root():
         new_user.set_password(temp_pw)
         db.session.add(new_user)
         db.session.commit()
-        
         send_credentials_email(new_user, temp_pw, "Administrator")
         log_admin_action(get_jwt_identity(), "Created Admin", f"User: {data['email']}")
-        return jsonify({"msg": "Admin created and email sent"}), 201
-
-@admin_bp.route('/vendors/<int:id>/reset-password', methods=['POST'])
-@jwt_required()
-@admin_required
-def reset_vendor_password(id):
-    vendor = User.query.get_or_404(id)
-    if vendor.role != 'VENDOR':
-        return jsonify({"msg": "Action allowed for vendors only"}), 400
-
-    try:
-        # 1. Generate a new secure password
-        temp_pw = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(10))
-        
-        # 2. Update User
-        vendor.set_password(temp_pw)
-        vendor.must_change_password = True # Force them to change it again on login
-        
-        db.session.commit()
-
-        # 3. Email the new credentials
-        send_credentials_email(vendor, temp_pw, "Vendor (Password Reset)")
-        
-        log_admin_action(get_jwt_identity(), "Reset Vendor Password", f"Vendor: {vendor.email}")
-        
-        return jsonify({"msg": f"Password reset successful. New credentials sent to {vendor.email}"}), 200
-
-    except Exception as e:
-        db.session.rollback()
-        print(f"Reset Password Error: {str(e)}")
-        return jsonify({"msg": "Failed to reset password"}), 500
+        return jsonify({"msg": "Admin created"}), 201
 
 @admin_bp.route('/users/<int:id>', methods=['PUT', 'DELETE'])
 @jwt_required()
 @admin_required
 def manage_single_admin(id):
     user = User.query.get_or_404(id)
-    if user.id == int(get_jwt_identity()):
-        return jsonify({"msg": "Cannot modify yourself"}), 400
-
+    if user.id == int(get_jwt_identity()): return jsonify({"msg": "Cannot modify yourself"}), 400
     if request.method == 'DELETE':
         db.session.delete(user)
         db.session.commit()
         log_admin_action(get_jwt_identity(), "Deleted Admin", f"User: {user.email}")
         return jsonify({"msg": "Admin deleted"}), 200
-
     if request.method == 'PUT':
         data = request.get_json()
         user.status = data.get('status', user.status)
@@ -355,161 +443,45 @@ def export_report():
     si = io.StringIO()
     cw = csv.writer(si)
     cw.writerow(['Sale ID', 'Date', 'Amount (KES)', 'Method', 'Cashier', 'Status'])
-    
-    total_processed = 0
+    total = 0
     for s in sales:
-        total_processed += s.total_amount
+        total += s.total_amount
         cw.writerow([s.id, s.created_at, s.total_amount, s.payment_method, s.cashier_id, s.status])
-        
     cw.writerow([])
-    cw.writerow(['TOTAL PROCESSED', '', total_processed])
-    cw.writerow(['TOTAL REVENUE (10%)', '', total_processed * 0.10])
-
+    cw.writerow(['TOTAL', '', total])
     output = make_response(si.getvalue())
     output.headers["Content-Disposition"] = "attachment; filename=sales_report.csv"
     output.headers["Content-type"] = "text/csv"
     return output
 
-@admin_bp.route('/wallet/stats', methods=['GET'])
-@jwt_required()
-@admin_required
-def get_wallet_overview():
-    """Returns platform-wide financial metrics for the Admin Wallet view"""
-    total_revenue = db.session.query(func.sum(Sale.total_amount)).filter_by(status='COMPLETED').scalar() or 0.0
-    # Platform earns 10% commission
-    platform_earnings = total_revenue * 0.10
-    
-    pending_withdrawals = db.session.query(func.sum(Settlement.amount))\
-        .filter(Settlement.status.in_(['pending', 'processing'])).scalar() or 0.0
-        
-    return jsonify({
-        "platform_earnings": float(platform_earnings),
-        "total_revenue": float(total_revenue),
-        "pending_withdrawals": float(pending_withdrawals)
-    }), 200
-
-@admin_bp.route('/wallet/withdrawals', methods=['GET'])
-@jwt_required()
-@admin_required
-def get_all_withdrawals():
-    """Fetches all withdrawal requests across all vendors for the Admin table"""
-    # Filter for settlements that are not linked to specific sales (i.e., payout requests)
-    withdrawals = Settlement.query.filter(Settlement.sale_id.is_(None))\
-        .order_by(Settlement.created_at.desc()).all()
-    
-    return jsonify([{
-        "id": w.id,
-        "vendor_name": w.vendor.business_name if w.vendor else "Unknown",
-        "vendor_email": w.vendor.email if w.vendor else "N/A",
-        "amount": float(w.amount),
-        "status": w.status,
-        "mpesa_number": w.vendor.withdrawal_mpesa_number if w.vendor else "N/A",
-        "created_at": w.created_at.isoformat()
-    } for w in withdrawals]), 200
-
-@admin_bp.route('/wallet/withdrawals/<int:id>/approve', methods=['POST'])
-@jwt_required()
-@admin_required
-def approve_withdrawal(id):
-    """Approves a vendor withdrawal and updates the status"""
-    withdrawal = Settlement.query.get_or_404(id)
-    
-    if withdrawal.status != 'pending':
-        return jsonify({"msg": f"Withdrawal is already {withdrawal.status}"}), 400
-
-    withdrawal.status = 'completed'
-    withdrawal.processed_at = datetime.utcnow()
-    
-    db.session.commit()
-    
-    log_admin_action(
-        get_jwt_identity(), 
-        "Approved Withdrawal", 
-        f"ID: {id} | Vendor: {withdrawal.vendor.email} | Amount: {withdrawal.amount}"
-    )
-    
-    return jsonify({"msg": "Withdrawal approved successfully"}), 200
-
-@admin_bp.route('/wallet/withdrawals/<int:id>/reject', methods=['POST'])
-@jwt_required()
-@admin_required
-def reject_withdrawal(id):
-    """Rejects a withdrawal and returns funds to the vendor's wallet balance"""
-    withdrawal = Settlement.query.get_or_404(id)
-    
-    if withdrawal.status != 'pending':
-        return jsonify({"msg": "Only pending withdrawals can be rejected"}), 400
-
-    # Return funds to vendor wallet
-    vendor_wallet = Wallet.query.filter_by(vendor_id=withdrawal.vendor_id).first()
-    if vendor_wallet:
-        vendor_wallet.current_balance += withdrawal.amount
-    
-    withdrawal.status = 'rejected'
-    db.session.commit()
-    
-    log_admin_action(
-        get_jwt_identity(), 
-        "Rejected Withdrawal", 
-        f"ID: {id} | Vendor: {withdrawal.vendor.email}"
-    )
-    
-    return jsonify({"msg": "Withdrawal rejected and funds returned"}), 200
-
 @admin_bp.route('/reports/payment-methods', methods=['GET'])
 @jwt_required()
 @admin_required
 def get_payment_method_stats():
-    """Returns actual percentage breakdown of payment methods used today"""
     today = datetime.utcnow().date()
+    results = db.session.query(Sale.payment_method, func.sum(Sale.total_amount).label('total'))\
+        .filter(func.date(Sale.created_at) == today, Sale.status == 'COMPLETED')\
+        .group_by(Sale.payment_method).all()
     
-    # Query real totals per method
-    results = db.session.query(
-        Sale.payment_method,
-        func.sum(Sale.total_amount).label('total')
-    ).filter(func.date(Sale.created_at) == today, Sale.status == 'COMPLETED')\
-     .group_by(Sale.payment_method).all()
-    
-    total_sum = sum(r.total for r in results) or 1 # Avoid division by zero
-    
-    stats = []
-    for r in results:
-        stats.append({
-            "label": r.payment_method,
-            "value": round((r.total / total_sum) * 100, 1),
-            # Map colors based on method name
-            "color": "#22c55e" if "MPESA" in r.payment_method.upper() else "#6366f1"
-        })
-        
+    total_sum = sum(r.total for r in results) or 1 
+    stats = [{"label": r.payment_method, "value": round((r.total / total_sum) * 100, 1), "color": "#22c55e" if "MPESA" in r.payment_method.upper() else "#6366f1"} for r in results]
     return jsonify(stats), 200
 
 @admin_bp.route('/reports/top-vendors', methods=['GET'])
 @jwt_required()
 @admin_required
 def get_top_vendors():
-    """Returns top 5 users (Vendors/Cashiers) by sales volume"""
-    try:
-        results = db.session.query(
-            User.business_name,
-            User.name,
-            User.email,
-            func.sum(Sale.total_amount).label('total_sales'),
-            func.count(Sale.id).label('transaction_count')
-        ).join(Sale, Sale.cashier_id == User.id)\
-         .filter(Sale.status == 'COMPLETED')\
-         .group_by(User.id)\
-         .order_by(func.sum(Sale.total_amount).desc())\
-         .limit(5).all()
+    results = db.session.query(
+        User.business_name, User.name, User.email,
+        func.sum(Sale.total_amount).label('total_sales'),
+        func.count(Sale.id).label('transaction_count')
+    ).join(Sale, Sale.cashier_id == User.id)\
+     .filter(Sale.status == 'COMPLETED')\
+     .group_by(User.id).order_by(func.sum(Sale.total_amount).desc()).limit(5).all()
 
-        return jsonify([{
-            # If business_name is null (like for a cashier), fall back to their personal name
-            "name": r.business_name if r.business_name else r.name,
-            "email": r.email,
-            "amount": float(r.total_sales),
-            "count": r.transaction_count
-        } for r in results]), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Leaderboard Error: {e}")
-        return jsonify({"msg": "Failed to load leaderboard", "error": str(e)}), 500
+    return jsonify([{
+        "name": r.business_name if r.business_name else r.name,
+        "email": r.email,
+        "amount": float(r.total_sales),
+        "count": r.transaction_count
+    } for r in results]), 200

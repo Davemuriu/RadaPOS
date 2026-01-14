@@ -50,20 +50,20 @@ const LoginPage = () => {
             const res = await api.post('/auth/login', payload);
             const { access_token, user, must_change_password } = res.data;
 
-            const userRole = user.role.toLowerCase();
-
-            // Handle Forced Password Change
             if (must_change_password) {
                 localStorage.setItem('temp_auth_token', access_token);
-                navigate('/force-password-change', { state: { email: email.trim() } });
+                navigate('/force-password-change', {
+                    state: { email: email.trim() }
+                });
                 return;
             }
 
-            // Success Login
             login(user, access_token);
 
+            const userRole = user.role.toLowerCase();
             switch (userRole) {
                 case 'admin':
+                case 'administrator':
                     navigate('/admin/dashboard');
                     break;
                 case 'vendor':
@@ -73,14 +73,12 @@ const LoginPage = () => {
                     navigate('/cashier/dashboard');
                     break;
                 default:
-                    // Fallback for unknown roles
-                    console.warn("Unknown role:", userRole);
                     navigate('/');
             }
 
         } catch (err) {
             console.error("Login Error:", err);
-            setError(err.message || err.response?.data?.msg || "Invalid credentials.");
+            setError(err.response?.data?.msg || "Invalid credentials.");
         } finally {
             setIsLoading(false);
         }
@@ -89,7 +87,6 @@ const LoginPage = () => {
     return (
         <div className="auth-wrapper">
             <div className="auth-glow" style={{ background: `radial-gradient(circle, ${config.color}20 0%, transparent 70%)` }}></div>
-
             <div className="auth-card">
                 <div className="auth-header">
                     <div className="role-badge" style={{ color: config.color, borderColor: config.color }}>
@@ -111,9 +108,7 @@ const LoginPage = () => {
                     <div className="form-group">
                         <label>Email Address</label>
                         <div className="input-icon-wrapper">
-                            <div className="icon-box">
-                                <Mail size={18} />
-                            </div>
+                            <div className="icon-box"><Mail size={18} /></div>
                             <input
                                 type="email"
                                 value={email}
@@ -127,9 +122,7 @@ const LoginPage = () => {
                     <div className="form-group">
                         <label>Password</label>
                         <div className="input-icon-wrapper">
-                            <div className="icon-box">
-                                <Lock size={18} />
-                            </div>
+                            <div className="icon-box"><Lock size={18} /></div>
                             <input
                                 type="password"
                                 value={password}
@@ -139,7 +132,13 @@ const LoginPage = () => {
                             />
                         </div>
                         <div className="forgot-password">
-                            <Link to="/forgot-password" style={{ color: config.color }}>Forgot Password?</Link>
+                            <Link
+                                to="/forgot-password"
+                                state={{ role: contextRole }}
+                                style={{ color: config.color }}
+                            >
+                                Forgot Password?
+                            </Link>
                         </div>
                     </div>
 

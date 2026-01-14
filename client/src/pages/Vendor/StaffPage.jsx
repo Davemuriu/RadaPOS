@@ -87,7 +87,6 @@ const StaffPage = () => {
 
     return (
         <div className="management-container">
-            {/* Header */}
             <div className="management-header">
                 <div>
                     <h1 className="page-title">Staff Management</h1>
@@ -104,7 +103,6 @@ const StaffPage = () => {
                 </div>
             </div>
 
-            {/* Action Bar (Search) */}
             <div className="action-bar" style={{ marginBottom: '2rem' }}>
                 <div className="search-wrapper">
                     <Search size={18} className="search-icon" />
@@ -118,7 +116,6 @@ const StaffPage = () => {
                 </div>
             </div>
 
-            {/* Staff Grid */}
             {loading ? (
                 <div className="flex items-center justify-center py-12 text-muted">
                     <Loader2 className="animate-spin mr-2" /> Loading Staff...
@@ -170,7 +167,6 @@ const StaffPage = () => {
                 </div>
             )}
 
-            {/* Modal */}
             {isModalOpen && (
                 <div className="modal-overlay">
                     <div className="modal-glass">

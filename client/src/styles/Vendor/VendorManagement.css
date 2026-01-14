@@ -132,8 +132,16 @@
 .chart-panel {
     display: flex;
     flex-direction: column;
-    min-height: 400px;
     position: relative;
+    box-sizing: border-box;
+    padding-bottom: 20px;
+}
+
+.chart-wrapper {
+    width: 100%;
+    height: 400px;
+    position: relative;
+    margin-top: 1rem;
 }
 
 .recharts-cartesian-axis-tick-value {
@@ -143,6 +151,83 @@
 
 [data-theme='dark'] .recharts-cartesian-axis-tick-value {
     fill: #cbd5e1 !important;
+}
+
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.search-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 250px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 12px 12px 40px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-page);
+    color: var(--text-main);
+    font-size: 0.9rem;
+    transition: 0.2s;
+}
+
+.search-input:focus {
+    border-color: var(--primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.date-wrapper {
+    position: relative;
+    width: auto;
+}
+
+.date-wrapper input[type="date"] {
+    padding: 11px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-page);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    min-width: 160px;
+}
+
+.theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.theme-toggle:hover {
+    background: var(--bg-page);
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 .table-responsive {
@@ -156,7 +241,14 @@
     font-size: 0.9rem;
 }
 
-.styled-table th {
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.styled-table th,
+.data-table th {
     text-align: left;
     padding: 1rem;
     color: var(--text-muted);
@@ -164,17 +256,57 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--border);
+    white-space: nowrap;
 }
 
-.styled-table td {
+.styled-table td,
+.data-table td {
     padding: 1rem;
     border-bottom: 1px solid var(--border);
     color: var(--text-main);
     vertical-align: middle;
+    white-space: nowrap;
 }
 
-.styled-table tr:last-child td {
+.styled-table tr:last-child td,
+.data-table tr:last-child td {
     border-bottom: none;
+}
+
+.styled-table tr.clickable-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.styled-table tr.clickable-row:hover {
+    background-color: var(--bg-page);
+}
+
+.styled-table tr.active-row {
+    background-color: rgba(16, 185, 129, 0.1) !important;
+    border-left: 3px solid var(--primary);
+}
+
+.split-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.text-cash {
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+}
+
+.text-mpesa {
+    color: #10b981;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
 }
 
 .status-badge {
@@ -198,6 +330,35 @@
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.status-badge.pending {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+    border: 1px solid rgba(234, 179, 8, 0.2);
+}
+
+.method-badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.method-badge.cash {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.method-badge.mpesa {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.method-badge.split {
+    background: #fef9c3;
+    color: #854d0e;
 }
 
 .staff-grid {
@@ -329,20 +490,6 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-}
-
-.styled-table tr.clickable-row {
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.styled-table tr.clickable-row:hover {
-    background-color: var(--bg-page);
-}
-
-.styled-table tr.active-row {
-    background-color: rgba(16, 185, 129, 0.1) !important;
-    border-left: 3px solid var(--primary);
 }
 
 .detail-grid {

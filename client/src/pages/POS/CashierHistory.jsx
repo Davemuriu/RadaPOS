@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import {
-    History, Search, FileText, Loader2, Sun, Moon,
-    ArrowUpRight, ArrowDownLeft, Receipt
+    Search, FileText, Loader2, Sun, Moon,
+    DollarSign, Smartphone, Download
 } from 'lucide-react';
 import '../../styles/Cashier/CashierManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
@@ -13,7 +13,6 @@ const CashierHistory = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // THEME LOGIC
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
     useEffect(() => {
@@ -49,9 +48,30 @@ const CashierHistory = () => {
         setFilteredTransactions(filtered);
     }, [searchTerm, transactions]);
 
+    const handleDownloadReceipt = async (saleId) => {
+        try {
+            const response = await api.get(`/mpesa/receipt/${saleId}`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Receipt_${saleId}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+        } catch (error) {
+            alert("Could not download receipt");
+        }
+    };
+
+    const getPaymentBadge = (method) => {
+        let className = 'method-badge';
+        if (method === 'CASH') className += ' cash';
+        else if (method === 'MPESA') className += ' mpesa';
+        else className += ' split';
+        return <span className={className}>{method}</span>;
+    };
+
     return (
         <div className="management-container">
-            {/* Header */}
             <div className="management-header">
                 <div>
                     <h1 className="page-title">My Sales History</h1>
@@ -90,13 +110,15 @@ const CashierHistory = () => {
                                 <th>Date & Time</th>
                                 <th>Items</th>
                                 <th>Total Amount</th>
-                                <th>Payment</th>
+                                <th>Payment Method</th>
+                                <th>Breakdown</th>
                                 <th>Status</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {loading ? (
-                                <tr><td colSpan="6" className="text-center py-8 text-muted"><Loader2 className="animate-spin inline mr-2" /> Loading Records...</td></tr>
+                                <tr><td colSpan="8" className="text-center py-8 text-muted"><Loader2 className="animate-spin inline mr-2" /> Loading Records...</td></tr>
                             ) : filteredTransactions.length > 0 ? (
                                 filteredTransactions.map((tx) => (
                                     <tr key={tx.id}>
@@ -110,20 +132,41 @@ const CashierHistory = () => {
                                         <td className="text-sm text-main">{tx.items_count} Items</td>
                                         <td className="font-bold text-main">KES {tx.total_amount.toLocaleString()}</td>
                                         <td>
-                                            <span className={`method-badge ${tx.payment_method === 'CASH' ? 'cash' : 'mpesa'}`}>
-                                                {tx.payment_method}
+                                            {getPaymentBadge(tx.payment_method)}
+                                        </td>
+                                        <td style={{ fontSize: '0.85rem' }}>
+                                            {tx.payment_method === 'SPLIT' ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <span style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <DollarSign size={12} /> Cash: {tx.amount_cash.toLocaleString()}
+                                                    </span>
+                                                    <span style={{ color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Smartphone size={12} /> M-Pesa: {tx.amount_mpesa.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted">-</span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <span className={`status-badge ${tx.status.toLowerCase()}`}>
+                                                {tx.status}
                                             </span>
                                         </td>
                                         <td>
-                                            <span className="status-badge completed">
-                                                {tx.status}
-                                            </span>
+                                            <button
+                                                className="icon-btn"
+                                                title="Download Receipt"
+                                                onClick={() => handleDownloadReceipt(tx.id)}
+                                            >
+                                                <Download size={16} />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan="6" className="empty-row text-center py-12">
+                                    <td colSpan="8" className="empty-row text-center py-12">
                                         <FileText size={32} className="text-muted mb-2 inline-block opacity-50" />
                                         <p className="text-muted font-medium">No transactions found.</p>
                                     </td>

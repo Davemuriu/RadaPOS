@@ -8,9 +8,9 @@ env_path = os.path.join(basedir, '.env')
 
 if os.path.exists(env_path):
     load_dotenv(env_path)
-    print(f"✅ CONFIG: Loaded environment from {env_path}")
+    print(f"CONFIG: Loaded environment from {env_path}")
 else:
-    print(f"⚠️ CONFIG WARNING: No .env file found at {env_path}")
+    print(f"CONFIG WARNING: No .env file found at {env_path}")
 
 class Config:
     # Security & Database

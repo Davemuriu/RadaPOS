@@ -1,4 +1,3 @@
-# app/utils/decorators.py
 from functools import wraps
 from flask import jsonify, request
 from flask_jwt_extended import verify_jwt_in_request, get_jwt
@@ -11,16 +10,13 @@ def admin_role_required(*allowed_admin_roles):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            # 1. Bypass check for CORS preflight
             if request.method == 'OPTIONS':
                 return fn(*args, **kwargs)
 
-            # 2. Support dev header to avoid 401/405 before login
             dev_role = request.headers.get("X-User-Role")
             if dev_role == "Administrator":
                 return fn(*args, **kwargs)
 
-            # 3. Standard JWT protection
             try:
                 verify_jwt_in_request()
                 claims = get_jwt()

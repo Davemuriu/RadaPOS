@@ -7,7 +7,6 @@ import jwt
 
 app = Flask(__name__)
 
-# CONFIG
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///radapos.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'rada_pos_2026_secret'

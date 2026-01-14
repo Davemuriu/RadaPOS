@@ -62,6 +62,9 @@ export default function AdminWallet() {
         try {
             const res = await api.post(`/admin/wallet/withdrawals/${id}/${action}`);
             if (res.status === 200) {
+                setWithdrawals(prev => prev.map(w =>
+                    w.id === id ? { ...w, status: action === 'approve' ? 'completed' : 'rejected' } : w
+                ));
                 fetchData();
             }
         } catch (err) {
@@ -71,7 +74,7 @@ export default function AdminWallet() {
 
     const filteredWithdrawals = withdrawals.filter(w =>
         w.vendor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        w.mpesa_number.includes(searchTerm)
+        (w.mpesa_number && w.mpesa_number.includes(searchTerm))
     );
 
     return (
@@ -178,7 +181,7 @@ export default function AdminWallet() {
                                         <td>
                                             <div className="flex items-center gap-2">
                                                 <span className="event-tag">MPESA</span>
-                                                <span className="font-mono text-muted">{w.mpesa_number}</span>
+                                                <span className="font-mono text-muted">{w.mpesa_number || "N/A"}</span>
                                             </div>
                                         </td>
                                         <td>

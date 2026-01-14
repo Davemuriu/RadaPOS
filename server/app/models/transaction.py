@@ -3,26 +3,32 @@ from datetime import datetime
 
 class Sale(db.Model):
     __tablename__ = 'transactions'
+    __table_args__ = {'extend_existing': True}
 
     id = db.Column(db.Integer, primary_key=True)
     total_amount = db.Column(db.Float, nullable=False)
+    
+    # Split Payment Columns
+    amount_cash = db.Column(db.Float, default=0.0)
+    amount_mpesa = db.Column(db.Float, default=0.0)
+
+    # Discount Columns
+    discount_amount = db.Column(db.Float, default=0.0)
+    coupon_code = db.Column(db.String(20), nullable=True)
+
     payment_method = db.Column(db.String(50), nullable=False)
     status = db.Column(db.String(20), default='COMPLETED')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     cashier_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
-    cashier = db.relationship('User', backref='sales_made', lazy=True)
     cashier = db.relationship('User', backref='sales', lazy=True)
-
-    # Cascade ensures items are deleted when a sale is deleted
     items = db.relationship('SaleItem', backref='parent_sale', cascade="all, delete-orphan", lazy=True)
-    
-    # Unified Mpesa relationship with a unique backref name
     mpesa_details = db.relationship('MpesaPayment', backref='parent_sale', cascade="all, delete-orphan", uselist=False, lazy=True)
 
 class SaleItem(db.Model):
     __tablename__ = 'transaction_items'
+    __table_args__ = {'extend_existing': True} 
 
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(db.Integer, db.ForeignKey('transactions.id'), nullable=False)
@@ -33,6 +39,7 @@ class SaleItem(db.Model):
 
 class MpesaPayment(db.Model):
     __tablename__ = 'mpesa_payments'
+    __table_args__ = {'extend_existing': True} 
 
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(db.Integer, db.ForeignKey('transactions.id'), nullable=True)

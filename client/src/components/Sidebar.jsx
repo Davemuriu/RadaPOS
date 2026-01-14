@@ -26,7 +26,6 @@ const Sidebar = ({ user, onLogout }) => {
   // Normalize role to handle case sensitivity and default to 'GUEST'
   const userRole = (user?.role || 'GUEST').toUpperCase();
 
-  // Helper to get menu items based on Role
   const getMenuItems = () => {
     switch (userRole) {
       case 'ADMIN':
@@ -66,7 +65,6 @@ const Sidebar = ({ user, onLogout }) => {
 
   return (
     <aside className="sidebar glass-panel">
-      {/* Header / Logo */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <div className="logo-icon-bg">
@@ -88,7 +86,6 @@ const Sidebar = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Navigation Links */}
       <nav className="sidebar-nav">
         {menuItems.map((item) => {
           const isActive = location.pathname.startsWith(item.path);

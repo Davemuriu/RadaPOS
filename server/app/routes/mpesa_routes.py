@@ -1,6 +1,3 @@
-import io
-import qrcode
-from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.transaction import Sale, SaleItem, MpesaPayment
@@ -8,275 +5,314 @@ from app.models.product import Product
 from app.models.user import User
 from app.models.wallet import Wallet, Settlement
 from app.extensions import db
+from datetime import datetime, timedelta
+import requests
+import base64
+import io
+import qrcode
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-
-from app.services.daraja_service import MpesaService 
+from config import Config
 from app.services.wallet_service import WalletService 
 
 mpesa_bp = Blueprint('mpesa_bp', __name__)
 
-@mpesa_bp.route('/pay', methods=['POST'])
-@jwt_required()
-def initiate_stk_push():
+NGROK_URL = "https://theresa-unsieged-marianne.ngrok-free.dev"
+
+# HELPERS
+def get_mpesa_password():
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    password_str = f"{Config.MPESA_SHORTCODE}{Config.MPESA_PASSKEY}{timestamp}"
+    return base64.b64encode(password_str.encode()).decode('utf-8'), timestamp
+
+def get_access_token():
+    consumer_key = Config.MPESA_CONSUMER_KEY
+    consumer_secret = Config.MPESA_CONSUMER_SECRET
     try:
-        user_id = get_jwt_identity()
-        data = request.get_json()
-        
+        r = requests.get("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", auth=(consumer_key, consumer_secret))
+        r.raise_for_status()
+        return r.json()['access_token']
+    except Exception as e:
+        print(f"❌ Token Error: {str(e)}")
+        return None
+
+# Initiate STK Push
+@mpesa_bp.route('/pay', methods=['POST'])
+def stk_push():
+    data = request.get_json()
+    print(f"🔍 STK Request Data: {data}")
+
+    try:
+        amount = int(float(data.get('amount', 0))) 
         phone_number = data.get('phone_number')
-        amount = data.get('amount')
-        cart_items = data.get('items', [])
+        sale_id = data.get('sale_id') or data.get('sale_id_override')
+
+        if not amount or not phone_number:
+            return jsonify({"msg": "Missing amount or phone"}), 400
+
+        token = get_access_token()
+        if not token:
+            return jsonify({"msg": "M-Pesa Auth Failed"}), 500
+
+        password, timestamp = get_mpesa_password()
+        callback_url = f"{NGROK_URL}/api/mpesa/callback"
+
+        payload = {
+            "BusinessShortCode": Config.MPESA_SHORTCODE,
+            "Password": password,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount, 
+            "PartyA": phone_number,
+            "PartyB": Config.MPESA_SHORTCODE,
+            "PhoneNumber": phone_number,
+            "CallBackURL": callback_url,
+            "AccountReference": "RadaPOS",
+            "TransactionDesc": "POS Sale"
+        }
+
+        headers = { "Authorization": f"Bearer {token}" }
+
+        req = requests.post('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', json=payload, headers=headers)
+        res_data = req.json()
         
-        if not phone_number or not amount:
-            return jsonify({"msg": "Phone and Amount required"}), 400
-
-        # 1. CREATE PENDING SALE RECORD
-        new_sale = Sale(
-            total_amount=amount, 
-            payment_method='MPESA', 
-            status='PENDING', 
-            cashier_id=user_id, 
-            created_at=datetime.utcnow()
-        )
-        db.session.add(new_sale)
-        db.session.flush() 
-
-        # Add Items to Sale
-        for item in cart_items:
-            prod = Product.query.get(item['id'])
-            if prod:
-                s_item = SaleItem(
-                    sale_id=new_sale.id, 
-                    product_id=prod.id, 
-                    product_name=prod.name, 
-                    quantity=item['quantity'], 
-                    price=prod.price
-                )
-                db.session.add(s_item)
-
-        # 2. CALL MPESA SERVICE
-        try:
-            stk_data = MpesaService.initiate_stk_push(
+        if 'ResponseCode' in res_data and res_data['ResponseCode'] == '0':
+            print(f"✅ STK Sent: {res_data['CheckoutRequestID']}")
+            new_payment = MpesaPayment(
+                sale_id=sale_id, 
+                checkout_request_id=res_data['CheckoutRequestID'],
+                merchant_request_id=res_data['MerchantRequestID'],
                 phone_number=phone_number,
                 amount=amount,
-                account_reference=f"Sale-{new_sale.id}"
+                result_desc="Pending"
             )
-        except Exception as mpesa_error:
-            db.session.rollback()
-            print(f"❌ STK Push Failed: {str(mpesa_error)}")
-            return jsonify({"msg": "M-Pesa Initiation Failed", "error": str(mpesa_error)}), 500
-
-        # 3. SAVE PAYMENT RECORD
-        payment = MpesaPayment(
-            sale_id=new_sale.id,
-            phone_number=phone_number,
-            amount=amount,
-            checkout_request_id=stk_data['CheckoutRequestID'],
-            merchant_request_id=stk_data['MerchantRequestID']
-        )
-        db.session.add(payment)
-        db.session.commit()
-        
-        return jsonify({
-            "msg": "STK Push Sent", 
-            "sale_id": new_sale.id, 
-            "checkout_request_id": stk_data['CheckoutRequestID']
-        }), 200
+            db.session.add(new_payment)
+            db.session.commit()
+            return jsonify({"msg": "Sent", "checkout_request_id": res_data['CheckoutRequestID'], "sale_id": sale_id}), 200
+        else:
+            print(f"❌ Safaricom Rejected: {res_data}")
+            return jsonify({"msg": "STK Push Failed", "error": res_data}), 400
 
     except Exception as e:
-        db.session.rollback()
-        print(f"❌ System Error: {str(e)}")
-        return jsonify({"msg": str(e)}), 500
+        print(f"❌ System Error in /pay: {e}")
+        return jsonify({"msg": "Request failed"}), 500
 
+# CALLBACK ROUTE
 @mpesa_bp.route('/callback', methods=['POST'])
-def mpesa_callback():
-    """
-    Safaricom Callback: Reached via Ngrok at /api/mpesa/callback
-    """
+def callback():
     try:
         data = request.get_json()
-        body = data.get('Body', {}).get('stkCallback', {})
-        result_code = body.get('ResultCode')
-        checkout_id = body.get('CheckoutRequestID')
+        body = data.get('Body', {})
+        stk_callback = body.get('stkCallback', {})
         
-        payment = MpesaPayment.query.filter_by(checkout_request_id=checkout_id).first()
-        if not payment:
-            return jsonify({"msg": "Record not found"}), 404
+        result_code = stk_callback.get('ResultCode')
+        result_desc = stk_callback.get('ResultDesc')
+        checkout_id = stk_callback.get('CheckoutRequestID')
 
-        payment.result_code = result_code
-        payment.result_desc = body.get('ResultDesc')
+        payment = MpesaPayment.query.filter_by(checkout_request_id=checkout_id).first()
         
-        sale = Sale.query.get(payment.sale_id)
-        if not sale:
-            return jsonify({"msg": "Sale not found"}), 404
+        if not payment:
+            print(f"⚠️ Ignored Callback: No payment found for {checkout_id}")
+            return jsonify({"ResultCode": 0, "ResultDesc": "Ignored"}), 200
+
+        # Update Payment
+        payment.result_code = result_code
+        payment.result_desc = result_desc
 
         if result_code == 0:
-            sale.status = 'COMPLETED'
+            print(f"✅ Callback Success: {checkout_id}")
             
-            # Extract Receipt Number
-            meta = body.get('CallbackMetadata', {}).get('Item', [])
-            receipt_item = next((item for item in meta if item.get('Name') == 'MpesaReceiptNumber'), {})
-            payment.mpesa_receipt_number = receipt_item.get('Value', 'N/A')
-            
-            # 1. Deduct Stock properly
-            for item in sale.items:
-                prod = Product.query.get(item.product_id)
-                if prod:
-                    prod.stock_quantity -= item.quantity
-            
-            # 2. DYNAMIC VENDOR IDENTIFICATION
-            # Find the vendor who owns the products in this sale
-            target_vendor_id = None
-            if sale.items:
-                sample_product = Product.query.get(sale.items[0].product_id)
-                target_vendor_id = sample_product.vendor_id
+            # Update Receipt Number
+            metadata = stk_callback.get('CallbackMetadata', {}).get('Item', [])
+            for item in metadata:
+                if item.get('Name') == 'MpesaReceiptNumber':
+                    payment.mpesa_receipt_number = item.get('Value')
 
-            if not target_vendor_id:
-                # Fallback to cashier's parent (The Vendor)
-                cashier = User.query.get(sale.cashier_id)
-                target_vendor_id = cashier.parent_id if cashier and cashier.parent_id else sale.cashier_id
+            # Update Sale Status
+            if payment.parent_sale:
+                sale = payment.parent_sale
+                sale.status = 'COMPLETED'
+                
+                # WALLET SETTLEMENT (90%)
+                target_vendor_id = None
+                if sale.items:
+                     prod = Product.query.get(sale.items[0].product_id)
+                     if prod: target_vendor_id = prod.vendor_id
+                
+                if not target_vendor_id:
+                     cashier = User.query.get(sale.cashier_id)
+                     if cashier: target_vendor_id = cashier.vendor_id if cashier.role != 'VENDOR' else cashier.id
 
-            # 3. WALLET SETTLEMENT (Applying 10% Commission)
-            net_amount = float(sale.total_amount) * 0.90
-            WalletService.add_funds(vendor_id=target_vendor_id, amount=net_amount)
-            
-            # Create Settlement Record for Vendor History
-            wallet = Wallet.query.filter_by(vendor_id=target_vendor_id).first()
-            if wallet:
-                new_settlement = Settlement(
-                    wallet_id=wallet.id,
-                    vendor_id=target_vendor_id,
-                    sale_id=sale.id,
-                    amount=net_amount,
-                    status='completed'
-                )
-                db.session.add(new_settlement)
-
-            db.session.commit()
-            print(f"✅ Sale {sale.id} completed. Vendor {target_vendor_id} credited KES {net_amount}")
+                if target_vendor_id:
+                     net_amount = float(sale.total_amount) * 0.90
+                     WalletService.add_funds(vendor_id=target_vendor_id, amount=net_amount)
+                     
+                     wallet = Wallet.query.filter_by(vendor_id=target_vendor_id).first()
+                     if wallet:
+                         settlement = Settlement(
+                             wallet_id=wallet.id,
+                             sale_id=sale.id,
+                             amount=net_amount,
+                             status='completed'
+                         )
+                         db.session.add(settlement)
+            else:
+                 print("⚠️ Payment success but NO PARENT SALE found!")
         else:
-            sale.status = 'FAILED'
-            db.session.commit()
+             print(f"❌ Callback Failed: {result_desc}")
+             if payment.parent_sale:
+                 payment.parent_sale.status = 'FAILED'
 
-        return jsonify({"msg": "Callback processed"}), 200
+        db.session.commit()
+        return jsonify({"ResultCode": 0, "ResultDesc": "Success"}), 200
 
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Callback Error: {str(e)}")
-        return jsonify({"msg": "Error"}), 500
+        print(f"🔥 CALLBACK CRASHED: {str(e)}")
+        return jsonify({"ResultCode": 1, "ResultDesc": "Internal Error"}), 500
 
+# STATUS CHECK
 @mpesa_bp.route('/status/<checkout_id>', methods=['GET'])
 def check_status(checkout_id):
     payment = MpesaPayment.query.filter_by(checkout_request_id=checkout_id).first()
-    if not payment:
-        return jsonify({"status": "PENDING"}), 200
-    if payment.result_code == 0:
-        return jsonify({"status": "COMPLETED", "receipt": payment.mpesa_receipt_number}), 200
-    if payment.result_code is not None:
+    if not payment: return jsonify({"status": "PENDING"}), 200
+    
+    if str(payment.result_code) == '0':
+        return jsonify({"status": "COMPLETED", "sale_id": payment.sale_id}), 200
+    elif payment.result_code is not None:
         return jsonify({"status": "FAILED", "reason": payment.result_desc}), 200
+    
     return jsonify({"status": "PENDING"}), 200
 
-@mpesa_bp.route('/history', methods=['GET'])
-@jwt_required()
-def get_sale_history():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    
-    if user.role.upper() in ['ADMIN', 'ADMINISTRATOR']:
-        sales = Sale.query.order_by(Sale.created_at.desc()).all()
-    elif user.role.upper() == 'VENDOR':
-        # Get sales where cashier is the Vendor OR cashier's employer is the Vendor
-        sales = Sale.query.join(User, Sale.cashier_id == User.id)\
-            .filter((Sale.cashier_id == user_id) | (User.vendor_id == user_id))\
-            .order_by(Sale.created_at.desc()).all()
-    else:
-        # Cashier sees only their own
-        sales = Sale.query.filter_by(cashier_id=user_id).order_by(Sale.created_at.desc()).all()
-    
-    return jsonify([{
-        "id": s.id,
-        "total_amount": s.total_amount,
-        "payment_method": s.payment_method,
-        "status": s.status,
-        "created_at": (s.created_at + timedelta(hours=3)).strftime("%Y-%m-%d %H:%M"),
-        "cashier_name": s.cashier.name if s.cashier else "Unknown",
-        "items": [{
-            "product_name": item.product_name,
-            "quantity": item.quantity,
-            "price": item.price
-        } for item in s.items]
-    } for s in sales]), 200
-
+# RECEIPT GENERATION
 @mpesa_bp.route('/receipt/<int:sale_id>', methods=['GET'])
-@jwt_required()
 def download_receipt(sale_id):
     try:
         sale = Sale.query.get_or_404(sale_id)
-        landing_page_url = "https://radapos-landing.vercel.app" 
         
+        # 1. Identify Vendor for Branding
+        vendor = None
+        cashier = User.query.get(sale.cashier_id)
+        if cashier:
+            vendor_id = cashier.id if cashier.role == 'VENDOR' else cashier.vendor_id
+            vendor = User.query.get(vendor_id)
+
+        # 2. Get Branding Text
+        business_name = vendor.business_name.upper() if (vendor and vendor.business_name) else "RADA POS"
+        footer_text = getattr(vendor, 'receipt_footer', "Thank you for shopping with us!") or "Thank you for shopping!"
+        phone = vendor.phone_number if vendor else ""
+
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=(300, 750))
 
-        # Receipt Header
-        p.setFont("Helvetica-Bold", 16)
-        p.drawCentredString(150, 720, "RadaPOS")
+        # HEADER
+        y = 720
+        p.setFont("Helvetica-Bold", 14)
+        p.drawCentredString(150, y, business_name)
+        y -= 20
         p.setFont("Helvetica", 9)
-        p.drawCentredString(150, 705, "Nairobi, Kenya | Business Terminal")
+        p.drawCentredString(150, y, "Nairobi, Kenya")
+        y -= 15
+        if phone:
+            p.drawCentredString(150, y, f"Tel: {phone}")
+            y -= 20
         
-        p.setDash(1, 2) 
-        p.line(20, 690, 280, 690)
-        p.setDash([], 0) 
+        p.line(20, y, 280, y)
+        y -= 20
 
-        # Meta Info
+        # META DATA
         p.setFont("Helvetica-Bold", 10)
-        p.drawString(20, 670, f"RECEIPT #: {sale.id}")
+        p.drawString(20, y, f"RECEIPT #: {sale.id}")
+        y -= 15
         p.setFont("Helvetica", 9)
         local_time = sale.created_at + timedelta(hours=3)
-        p.drawString(20, 655, f"Date: {local_time.strftime('%d/%m/%Y %H:%M')}")
-        p.drawString(20, 640, f"Cashier: {sale.cashier.name if sale.cashier else 'N/A'}")
-        
-        # M-Pesa Specific Data
-        if sale.payment_method == 'MPESA':
-            payment = MpesaPayment.query.filter_by(sale_id=sale.id).first()
-            if payment and payment.mpesa_receipt_number:
-                p.drawString(20, 625, f"M-PESA REF: {payment.mpesa_receipt_number}")
+        p.drawString(20, y, f"Date: {local_time.strftime('%d/%m/%Y %H:%M')}")
+        y -= 15
+        p.drawString(20, y, f"Cashier: {sale.cashier.name if sale.cashier else 'N/A'}")
+        y -= 25
 
-        p.line(20, 615, 280, 615)
-
-        # Table Header
+        # ITEMS HEADER
         p.setFont("Helvetica-Bold", 9)
-        p.drawString(20, 600, "ITEM")
-        p.drawRightString(200, 600, "QTY")
-        p.drawRightString(280, 600, "TOTAL")
+        p.drawString(20, y, "ITEM")
+        p.drawRightString(200, y, "QTY")
+        p.drawRightString(280, y, "TOTAL")
+        p.line(20, y-5, 280, y-5)
+        y -= 20
         
-        # Items Loop
+        # ITEMS LIST
         p.setFont("Helvetica", 9)
-        y = 580
         for item in sale.items:
-            p.drawString(20, y, item.product_name[:20])
+            name = item.product_name[:22] + "..." if len(item.product_name) > 22 else item.product_name
+            p.drawString(20, y, name)
             p.drawRightString(200, y, str(item.quantity))
             p.drawRightString(280, y, f"{item.price * item.quantity:,.2f}")
             y -= 15
 
-        # Footer
+        # TOTALS SECTION
+        y -= 10
         p.line(20, y, 280, y)
-        p.setFont("Helvetica-Bold", 11)
-        p.drawString(20, y - 20, "TOTAL")
-        p.drawRightString(280, y - 20, f"KES {sale.total_amount:,.2f}")
+        y -= 20
 
-        # QR Code for Verification
+        # Check for Discount
+        discount = getattr(sale, 'discount', 0) or 0
+
+        if discount > 0:
+            # If there is a discount, show the Math
+            subtotal = sale.total_amount + discount
+            
+            p.setFont("Helvetica", 9)
+            p.drawString(20, y, "Subtotal")
+            p.drawRightString(280, y, f"{subtotal:,.2f}")
+            y -= 15
+            
+            p.drawString(20, y, "Discount")
+            p.drawRightString(280, y, f"-{discount:,.2f}")
+            y -= 15
+            
+            # Small separator line for final total
+            p.setLineWidth(0.5)
+            p.line(180, y+5, 280, y+5) 
+            y -= 5
+
+        # Final Total
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(20, y, "TOTAL")
+        p.drawRightString(280, y, f"KES {sale.total_amount:,.2f}")
+        
+        # PAYMENT BREAKDOWN
+        if sale.payment_method == 'SPLIT':
+             y -= 20
+             p.setFont("Helvetica", 9)
+             p.drawString(20, y, "Paid via Cash:")
+             p.drawRightString(280, y, f"{sale.amount_cash:,.2f}")
+             y -= 15
+             p.drawString(20, y, "Paid via M-Pesa:")
+             p.drawRightString(280, y, f"{sale.amount_mpesa:,.2f}")
+
+        # QR CODE
+        landing_page_url = "https://radapos-landing.vercel.app" 
         qr = qrcode.QRCode(box_size=10, border=1)
         qr.add_data(landing_page_url)
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white")
+        
         qr_buf = io.BytesIO()
         qr_img.save(qr_buf, format='PNG')
         qr_buf.seek(0)
         
-        p.drawImage(ImageReader(qr_buf), 110, y - 110, width=80, height=80)
-        p.setFont("Helvetica-Bold", 9)
-        p.drawCentredString(150, y - 130, "THANK YOU FOR SHOPPING!")
+        y -= 90
+        p.drawImage(ImageReader(qr_buf), 110, y, width=80, height=80)
+
+        # FOOTER
+        y -= 20
+        p.setFont("Helvetica-Oblique", 8)
+        p.drawCentredString(150, y, footer_text)
         
+        y -= 12
+        p.setFont("Helvetica", 6)
+        p.setFillColorRGB(0.5, 0.5, 0.5)
+        p.drawCentredString(150, y, "Powered by RadaPOS Enterprise")
+
         p.showPage()
         p.save()
         buffer.seek(0)
@@ -284,16 +320,3 @@ def download_receipt(sale_id):
     except Exception as e:
         print(f"Receipt Error: {e}")
         return jsonify({"msg": "Failed to generate receipt"}), 500
-
-@mpesa_bp.route('/sale/<int:sale_id>', methods=['DELETE'])
-@jwt_required()
-def delete_sale(sale_id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user or user.role.upper() != 'VENDOR':
-        return jsonify({"msg": "Forbidden"}), 403
-        
-    sale = Sale.query.get_or_404(sale_id)
-    db.session.delete(sale)
-    db.session.commit()
-    return jsonify({"msg": "Deleted"}), 200

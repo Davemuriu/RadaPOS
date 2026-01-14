@@ -3,10 +3,11 @@ from app.models.product import Product
 from app.models.user import User
 from app.extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.utils.audit import audit_log
 
 product_bp = Blueprint('product_bp', __name__)
 
-# GET PRODUCTS (ISOLATED)
+# GET PRODUCTS WITH DATA ISOLATION
 @product_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_products():
@@ -28,7 +29,6 @@ def get_products():
             
         elif user.role.upper() == 'CASHIER':
             # Cashiers see products belonging to their Employing Vendor
-            # Assuming 'vendor_id' on the User model points to their employer
             if user.vendor_id:
                 products = Product.query.filter_by(vendor_id=user.vendor_id).all()
             else:
@@ -46,7 +46,6 @@ def get_products():
                 'stock_quantity': product.stock_quantity,
                 'description': product.description,
                 'vendor_id': product.vendor_id,
-                # Safe access for category in case it's null
                 'category': getattr(product, 'category', 'General') 
             })
         return jsonify(output), 200
@@ -65,7 +64,6 @@ def add_product():
         
         user = User.query.get(current_user_id)
         
-        # Only Vendors can add products (Admins usually don't sell items directly)
         if not user or user.role.upper() != 'VENDOR':
             return jsonify({"msg": "Unauthorized. Only Vendors can add products."}), 403
 
@@ -75,7 +73,7 @@ def add_product():
             stock_quantity=int(data['stock_quantity']),
             description=data.get('description', ''),
             category=data.get('category', 'General'),
-            vendor_id=current_user_id # Automatically link to the logged-in Vendor
+            vendor_id=current_user_id 
         )
         
         db.session.add(new_product)
@@ -94,13 +92,11 @@ def add_product():
 # DELETE PRODUCT
 @product_bp.route('/<int:id>', methods=['DELETE'])
 @jwt_required()
+@audit_log("Deleted Product")
 def delete_product(id):
     try:
         current_user_id = get_jwt_identity()
         product = Product.query.get_or_404(id)
-        
-        # Strict Ownership Check: You can only delete your own products
-        # Note: We cast to string/int to be safe, though IDs are usually ints
         if str(product.vendor_id) != str(current_user_id):
             return jsonify({"msg": "Unauthorized: You do not own this product"}), 403
             
@@ -111,12 +107,12 @@ def delete_product(id):
     except Exception as e:
         print(f"Error deleting product: {e}")
         db.session.rollback()
-        # Usually fails if product is linked to a SaleItem (Foreign Key Constraint)
         return jsonify({"msg": "Cannot delete product. It is part of existing sales history."}), 400
     
 # UPDATE PRODUCT
 @product_bp.route('/<int:id>', methods=['PUT'])
 @jwt_required()
+@audit_log("Updated Product Details")
 def update_product(id):
     try:
         current_user_id = get_jwt_identity()
