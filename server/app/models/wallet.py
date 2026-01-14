@@ -10,6 +10,8 @@ class Wallet(db.Model):
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
 
     withdrawals = db.relationship('Withdrawal', backref='wallet', lazy=True)
+    ledger = db.relationship('WalletLedger', backref='wallet', lazy=True)   
+
 
 class Withdrawal(db.Model):
     __tablename__ = 'withdrawals'
@@ -20,6 +22,7 @@ class Withdrawal(db.Model):
     mpesa_reference = db.Column(db.String(50))
     status = db.Column(db.String(20), default='pending') 
     requested_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 class Settlement(db.Model):
     __tablename__ = 'settlements'

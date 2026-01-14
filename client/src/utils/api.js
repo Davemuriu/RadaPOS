@@ -17,3 +17,5 @@ api.interceptors.request.use((config) => {
 })
 
 export default api
+
+export const directPayout = (data) => api.post("/auth/payout-direct", data);
