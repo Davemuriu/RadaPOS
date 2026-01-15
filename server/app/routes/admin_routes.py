@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, make_response
+from flask import Blueprint, jsonify, request, make_response, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_mail import Message
 from app.models.user import User
@@ -11,6 +11,7 @@ from app.extensions import db, bcrypt, mail
 from sqlalchemy import func
 import functools
 from datetime import datetime, time, timedelta
+from threading import Thread
 import csv
 import io
 import string
@@ -36,6 +37,13 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def send_async_email(app, msg):
+    with app.app_context():
+        try:
+            mail.send(msg)
+        except Exception as e:
+            print(f"Failed to send email async: {e}")
+
 def send_credentials_email(user, password, role_name):
     try:
         msg = Message(f"RadaPOS {role_name} Access Credentials", recipients=[user.email])
@@ -50,10 +58,10 @@ def send_credentials_email(user, password, role_name):
 
         Please log in at your respective portal and change your password immediately.
         """
-        mail.send(msg)
+        Thread(target=send_async_email, args=(current_app._get_current_object(), msg)).start()
         return True
     except Exception as e:
-        print(f"Failed to send email to {user.email}: {e}")
+        print(f"Failed to initiate email to {user.email}: {e}")
         return False
 
 @admin_bp.route('/dashboard/graph', methods=['GET'])
