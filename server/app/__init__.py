@@ -6,8 +6,14 @@ from flask_cors import CORS
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
-
-    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+    
+    CORS(app, resources={r"/*": {
+        "origins": [
+            "http://localhost:5173",
+            "https://rada-pos.vercel.app",
+            "https://rada-nn93ji0xv-davemurius-projects.vercel.app"
+        ]
+    }}, supports_credentials=True)
 
     db.init_app(app)
     migrate.init_app(app, db)
