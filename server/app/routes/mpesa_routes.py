@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify, send_file, current_app, make_response
-from flask_jwt_extended import verify_jwt_in_request
-from app.models.transaction import Sale, SaleItem, MpesaPayment
+from flask import Blueprint, request, jsonify, send_file, current_app
+from flask_cors import CORS, cross_origin
+from flask_jwt_extended import jwt_required
+from app.models.transaction import Sale, MpesaPayment
 from app.models.product import Product
 from app.models.user import User
 from app.models.wallet import Wallet, Settlement
@@ -14,6 +15,9 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
 mpesa_bp = Blueprint('mpesa_bp', __name__)
+
+# Enable CORS for this entire blueprint
+CORS(mpesa_bp)
 
 def get_mpesa_password():
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -33,36 +37,11 @@ def get_access_token():
         print(f"Token Error: {str(e)}")
         return None
 
-# --- STK PUSH WITH STRICT CORS FIX ---
-@mpesa_bp.route('/pay', methods=['POST', 'OPTIONS'])
+# --- STK PUSH ROUTE ---
+@mpesa_bp.route('/pay', methods=['POST'])
+@cross_origin() # <--- MUST BE AT THE TOP to handle OPTIONS request
+@jwt_required()
 def stk_push():
-    # 1. Handle Preflight (Browser Check)
-    if request.method == 'OPTIONS':
-        response = make_response(jsonify({'status': 'ok'}))
-        
-        # DYNAMIC ORIGIN FIX:
-        # Instead of '*', we copy the exact Origin the browser sent us.
-        # This tricks the browser into thinking we whitelisted them specifically.
-        origin = request.headers.get('Origin') or '*'
-        
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response, 200
-
-    # 2. Verify Security Manually (Only for POST)
-    try:
-        verify_jwt_in_request()
-    except Exception as e:
-        # Still return CORS headers even on error, so the browser can read the error
-        response = make_response(jsonify({"msg": "Unauthorized", "error": str(e)}))
-        origin = request.headers.get('Origin') or '*'
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response, 401
-
-    # 3. Process Payment
     data = request.get_json()
     try:
         amount = int(float(data.get('amount', 0))) 
@@ -96,12 +75,12 @@ def stk_push():
 
         headers = { "Authorization": f"Bearer {token}" }
 
+        # Log for debugging
         print(f"Sending STK to {phone_number} for {amount} KES")
 
         req = requests.post('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', json=payload, headers=headers)
         res_data = req.json()
         
-        # Build Response with CORS Headers
         if 'ResponseCode' in res_data and res_data['ResponseCode'] == '0':
             new_payment = MpesaPayment(
                 sale_id=sale_id, 
@@ -113,26 +92,17 @@ def stk_push():
             )
             db.session.add(new_payment)
             db.session.commit()
-            
-            response = make_response(jsonify({"msg": "Sent", "checkout_request_id": res_data['CheckoutRequestID'], "sale_id": sale_id}))
+            return jsonify({"msg": "Sent", "checkout_request_id": res_data['CheckoutRequestID'], "sale_id": sale_id}), 200
         else:
-            response = make_response(jsonify({"msg": "STK Push Failed", "error": res_data}), 400)
-
-        # Attach CORS headers to the final success/fail response
-        origin = request.headers.get('Origin') or '*'
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
+            print(f"STK Failed: {res_data}")
+            return jsonify({"msg": "STK Push Failed", "error": res_data}), 400
 
     except Exception as e:
         print(f"STK System Error: {e}")
-        response = make_response(jsonify({"msg": "Request failed", "error": str(e)}), 500)
-        origin = request.headers.get('Origin') or '*'
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
-        return response
+        return jsonify({"msg": "Request failed", "error": str(e)}), 500
 
 @mpesa_bp.route('/callback', methods=['POST'])
+@cross_origin()
 def callback():
     try:
         data = request.get_json()
@@ -198,6 +168,7 @@ def callback():
         return jsonify({"ResultCode": 1, "ResultDesc": "Internal Error"}), 500
 
 @mpesa_bp.route('/status/<checkout_id>', methods=['GET'])
+@cross_origin()
 def check_status(checkout_id):
     payment = MpesaPayment.query.filter_by(checkout_request_id=checkout_id).first()
     if not payment: return jsonify({"status": "PENDING"}), 200
@@ -210,6 +181,7 @@ def check_status(checkout_id):
     return jsonify({"status": "PENDING"}), 200
 
 @mpesa_bp.route('/receipt/<int:sale_id>', methods=['GET'])
+@cross_origin()
 def download_receipt(sale_id):
     try:
         sale = Sale.query.get_or_404(sale_id)
