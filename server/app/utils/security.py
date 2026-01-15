@@ -1,10 +1,13 @@
-# app/utils/security.py
-from werkzeug.security import generate_password_hash, check_password_hash
+from app.extensions import bcrypt
 
-def hash_password(password: str) -> str:
-    """Hash a plain text password."""
-    return generate_password_hash(password)
+def hash_password(password):
+    """
+    Hashes a plain text password using Bcrypt.
+    """
+    return bcrypt.generate_password_hash(password).decode('utf-8')
 
-def verify_password(password: str, password_hash: str) -> bool:
-    """Verify a plain text password against the hash."""
-    return check_password_hash(password_hash, password)
+def verify_password(password_hash, password):
+    """
+    Verifies a password against the stored hash.
+    """
+    return bcrypt.check_password_hash(password_hash, password)

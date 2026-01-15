@@ -1,42 +1,40 @@
-# server/app/__init__.py
 from flask import Flask
-from flask_jwt_extended import JWTManager
-from flask_migrate import Migrate
-
 from config import Config
-from app.extensions import db
+from app.extensions import db, bcrypt, jwt, cors, mail, migrate
 
-# Create the Migrate object at module level so `flask db` commands can find it
-migrate = Migrate()
-
-def create_app():
-    """
-    Application factory function.
-    Creates and configures the Flask app, initializes extensions,
-    and registers blueprints.
-    """
+def create_app(config_class=Config):
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(config_class)
 
-    # Initialize extensions
     db.init_app(app)
-    JWTManager(app)
-    migrate.init_app(app, db)  # Enables `flask db init/migrate/upgrade`
+    migrate.init_app(app, db)
+    bcrypt.init_app(app)
+    jwt.init_app(app)
+    
+    cors.init_app(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+    
+    mail.init_app(app)
 
-    #  Import blueprints
     from app.routes.auth_routes import auth_bp
-    from app.routes.user_routes import user_bp
-    from app.routes.wallet_routes import wallet_bp
-    from app.routes.transaction_routes import transaction_bp
     from app.routes.product_routes import product_bp
-    from app.routes.event_routes import event_bp
+    from app.routes.transaction_routes import transaction_bp
+    from app.routes.analytics_routes import analytics_bp
+    from app.routes.staff_routes import staff_bp
+    from app.routes.mpesa_routes import mpesa_bp
+    from app.routes.settings_routes import settings_bp
+    from app.routes.admin_routes import admin_bp
+    from app.routes.vendor_routes import vendor_bp
+    from app.routes.notification_routes import notification_bp
 
-    # Register blueprints
-    app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(user_bp, url_prefix="/users")
-    app.register_blueprint(wallet_bp, url_prefix="/wallet")
-    app.register_blueprint(transaction_bp, url_prefix="/transactions")
-    app.register_blueprint(product_bp, url_prefix="/products")
-    app.register_blueprint(event_bp, url_prefix="/events")
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(product_bp, url_prefix='/api/products')
+    app.register_blueprint(transaction_bp, url_prefix='/api/transactions')
+    app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
+    app.register_blueprint(staff_bp, url_prefix='/api/staff')
+    app.register_blueprint(mpesa_bp, url_prefix='/api/mpesa')
+    app.register_blueprint(settings_bp, url_prefix='/api/settings')
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(vendor_bp, url_prefix='/api/vendor')
+    app.register_blueprint(notification_bp, url_prefix='/api/notifications')
 
     return app

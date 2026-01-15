@@ -1,12 +1,31 @@
-from app import db
+from datetime import datetime
+from app.extensions import db
 
 class Product(db.Model):
     __tablename__ = 'products'
 
     id = db.Column(db.Integer, primary_key=True)
-    vendor_id = db.Column(db.Integer, db.ForeignKey('vendors.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
     price = db.Column(db.Float, nullable=False)
     stock_quantity = db.Column(db.Integer, default=0)
     image_url = db.Column(db.String(255))
-    is_active = db.Column(db.Boolean, default=True)
+    
+    category = db.Column(db.String(50), default='General') 
+    
+    vendor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "price": self.price,
+            "stock_quantity": self.stock_quantity,
+            "category": self.category,
+            "vendor_id": self.vendor_id,
+            "image_url": self.image_url
+        }

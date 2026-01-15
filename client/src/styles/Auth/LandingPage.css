@@ -1,0 +1,100 @@
+.landing-container {
+    background-color: #0B0E11;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    min-height: 100vh;
+    display: flex;
+}
+
+.glass-panel {
+    background: rgba(17, 20, 26, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px -10px rgba(123, 97, 255, 0.2);
+}
+
+.role-button-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.hover-gradient-bg {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+    z-index: 0;
+}
+
+.role-button-container:hover .hover-gradient-bg {
+    opacity: 0.08;
+}
+
+.role-icon-box {
+    background: rgba(22, 27, 34, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    position: relative;
+    z-index: 10;
+}
+
+.text-gradient {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    background-image: linear-gradient(to right, #7B61FF, #5AC8FA, #34C759);
+}
+
+.system-status-badge {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #818cf8;
+}
+
+@keyframes float {
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-20px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+.animate-float-slow {
+    animation: float 8s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+    animation: float 10s ease-in-out infinite;
+    animation-delay: 2s;
+}
+
+.glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+}

@@ -1,126 +1,327 @@
-from flask import Blueprint, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
-
-from app.extensions import db
-from app.models.transaction import Sale, SaleItem
+from flask import Blueprint, request, jsonify, Response
+from app.models.transaction import Sale, SaleItem, MpesaPayment
 from app.models.product import Product
-from app.utils.rbac import role_required
+from app.models.user import User
+from app.models.notification import Notification
+from app.extensions import db
+from datetime import datetime
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models.discount import DiscountCode
+import csv
+import io
 
-transaction_bp = Blueprint("transaction", __name__)
+transaction_bp = Blueprint('transaction_bp', __name__)
 
-
-# ===========================
-# POS CHECKOUT ENDPOINT
-# ===========================
-@transaction_bp.route("/checkout", methods=["POST"])
-@jwt_required()
-@role_required("VENDOR", "CASHIER")
-def checkout():
+@transaction_bp.route('/mpesa/callback', methods=['POST'])
+def mpesa_callback():
     data = request.get_json()
-    user_id = get_jwt_identity()
+    
+    callback_data = data.get('Body', {}).get('stkCallback', {})
+    result_code = callback_data.get('ResultCode')
+    checkout_id = callback_data.get('CheckoutRequestID')
 
-    if not data:
-        return {"msg": "Request body is required"}, 400
+    payment = MpesaPayment.query.filter_by(checkout_request_id=checkout_id).first()
+    
+    if not payment:
+        return jsonify({"ResultCode": 1, "ResultDesc": "Ignored"}), 200
 
-    items = data.get("items")
-    payment_method = data.get("payment_method", "cash")
-    vendor_id = data.get("vendor_id")
-    event_id = data.get("event_id")
-    amount_tendered = float(data.get("amount_tendered", 0))
-    mpesa_code = data.get("mpesa_code")
-    offline = data.get("offline", False)
+    if result_code == 0:
+        payment.result_code = 0
+        payment.result_desc = "Success"
+        
+        metadata = callback_data.get('CallbackMetadata', {}).get('Item', [])
+        for item in metadata:
+            if item['Name'] == 'MpesaReceiptNumber':
+                payment.mpesa_receipt_number = item['Value']
 
-    if not items or not isinstance(items, list):
-        return {"msg": "Items must be a non-empty list"}, 400
+        if payment.parent_sale:
+            payment.parent_sale.status = 'COMPLETED'
+    else:
+        payment.result_code = result_code
+        payment.result_desc = callback_data.get('ResultDesc', 'Failed')
+        if payment.parent_sale:
+            payment.parent_sale.status = 'FAILED'
 
-    if not vendor_id or not event_id:
-        return {"msg": "vendor_id and event_id required"}, 400
+    db.session.commit()
+    return jsonify({"ResultCode": 0, "ResultDesc": "Success"}), 200
 
-    # ===== Server Side Price Authority =====
-    total = 0
-    validated_items = []
-
-    for item in items:
-        product = Product.query.get(item["product_id"])
-        if not product or product.stock < item["qty"]:
-            return {"msg": f"Stock unavailable for product {item['product_id']}"}, 400
-
-        subtotal = product.price * item["qty"]
-        total += subtotal
-        validated_items.append((product, item["qty"], product.price, subtotal))
-
-    if amount_tendered < total:
-        return {"msg": "Amount tendered is less than total"}, 400
-
-    surplus_amount = round(amount_tendered - total, 2)
-    surplus_type = data.get("surplus_type") if surplus_amount > 0 else None
-
-    # ===== Create Sale =====
-    sale = Sale(
-        vendor_id=vendor_id,
-        cashier_id=user_id,
-        event_id=event_id,
-        order_total=total,
-        amount_tendered=amount_tendered,
-        change_given=surplus_amount if surplus_type == "refund" else 0,
-        surplus_amount=surplus_amount,
-        surplus_type=surplus_type,
-        payment_method=payment_method,
-        mpesa_code=mpesa_code,
-        status="queued" if offline else "completed",
-        created_at=datetime.utcnow()
-    )
-
+@transaction_bp.route('/', methods=['GET'])
+@jwt_required()
+def get_transactions():
     try:
-        db.session.add(sale)
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+
+        if user.role.upper() in ['ADMIN', 'ADMINISTRATOR']:
+            sales = Sale.query.order_by(Sale.created_at.desc()).all()
+            
+        elif user.role.upper() == 'VENDOR':
+            vendor_id = user.id
+            sales = Sale.query.join(User, Sale.cashier_id == User.id)\
+                .filter((User.id == vendor_id) | (User.vendor_id == vendor_id))\
+                .order_by(Sale.created_at.desc()).all()
+        else:
+            sales = Sale.query.filter_by(cashier_id=current_user_id).order_by(Sale.created_at.desc()).all()
+        
+        results = []
+        for s in sales:
+            final_cash = s.amount_cash or 0
+            final_mpesa = s.amount_mpesa or 0
+
+            if s.payment_method == 'CASH' and final_cash == 0:
+                final_cash = s.total_amount
+            elif s.payment_method == 'MPESA' and final_mpesa == 0:
+                final_mpesa = s.total_amount
+            
+            method_display = s.payment_method
+            if s.payment_method == 'SPLIT':
+                method_display = f"SPLIT (Cash: {final_cash}, M-Pesa: {final_mpesa})"
+            
+            results.append({
+                "id": s.id,
+                "total_amount": s.total_amount,
+                "amount_cash": final_cash,
+                "amount_mpesa": final_mpesa,
+                "payment_method": s.payment_method,
+                "method_display": method_display,
+                "status": s.status,
+                "created_at": s.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "cashier_name": s.cashier.name if s.cashier else "Unknown",
+                "items_count": len(s.items)
+            })
+            
+        return jsonify(results), 200
+    except Exception as e:
+        print(f"Fetch Error: {e}")
+        return jsonify({"msg": "Failed to fetch transactions"}), 500
+
+@transaction_bp.route('/export', methods=['GET'])
+@jwt_required()
+def export_transactions():
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+
+        if user.role.upper() == 'VENDOR':
+            vendor_id = user.id
+            sales = Sale.query.join(User, Sale.cashier_id == User.id)\
+                .filter((User.id == vendor_id) | (User.vendor_id == vendor_id))\
+                .order_by(Sale.created_at.desc()).all()
+        else:
+             return jsonify({"msg": "Unauthorized"}), 403
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        writer.writerow(['Sale ID', 'Date', 'Cashier', 'Method', 'Total', 'Cash Paid', 'M-Pesa Paid', 'Status'])
+        
+        for s in sales:
+            final_cash = s.amount_cash or 0
+            final_mpesa = s.amount_mpesa or 0
+
+            if s.payment_method == 'CASH' and final_cash == 0:
+                final_cash = s.total_amount
+            elif s.payment_method == 'MPESA' and final_mpesa == 0:
+                final_mpesa = s.total_amount
+
+            writer.writerow([
+                s.id, 
+                s.created_at.strftime("%Y-%m-%d %H:%M"), 
+                s.cashier.name if s.cashier else "Unknown",
+                s.payment_method,
+                s.total_amount,
+                final_cash,
+                final_mpesa,
+                s.status
+            ])
+            
+        output.seek(0)
+        return Response(
+            output, 
+            mimetype="text/csv", 
+            headers={"Content-Disposition": "attachment;filename=sales_report.csv"}
+        )
+
+    except Exception as e:
+        print(f"Export Error: {e}")
+        return jsonify({"msg": "Export failed"}), 500
+
+@transaction_bp.route('/', methods=['POST'])
+@jwt_required()
+def create_transaction():
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        cart_items = data.get('items', [])
+        payment_method = data.get('payment_method', 'CASH').upper()
+        coupon_code = data.get('coupon_code')
+        
+        req_cash = float(data.get('amount_cash', 0))
+        req_mpesa = float(data.get('amount_mpesa', 0))
+        
+        if not cart_items:
+            return jsonify({"msg": "Cart is empty"}), 400
+
+        calculated_total = 0
+        valid_items = []
+
+        for item in cart_items:
+            product = Product.query.get(item['id'])
+            if not product:
+                return jsonify({"msg": f"Product ID {item['id']} not found"}), 400
+            
+            if product.stock_quantity < item['quantity']:
+                return jsonify({"msg": f"Insufficient stock for {product.name}"}), 400
+            
+            line_total = product.price * item['quantity']
+            calculated_total += line_total
+            
+            valid_items.append({
+                "product": product,
+                "quantity": item['quantity'],
+                "price": product.price
+            })
+
+        discount_amount = 0.0
+        applied_coupon = None
+
+        if coupon_code:
+            user = User.query.get(current_user_id)
+            vendor_id = user.id if user.role == 'VENDOR' else user.vendor_id
+            
+            coupon = DiscountCode.query.filter_by(code=coupon_code, vendor_id=vendor_id).first()
+            
+            if coupon and coupon.is_valid():
+                discount_amount = (calculated_total * coupon.percentage) / 100
+                applied_coupon = coupon.code
+
+        final_total = calculated_total - discount_amount
+
+        final_cash = 0.0
+        final_mpesa = 0.0
+
+        if payment_method == 'CASH':
+            final_cash = final_total
+        elif payment_method == 'MPESA':
+            final_mpesa = final_total
+        elif payment_method == 'SPLIT':
+            if abs((req_cash + req_mpesa) - final_total) > 1.0:
+                 return jsonify({"msg": f"Split amounts ({req_cash} + {req_mpesa}) do not match Total ({final_total})"}), 400
+            final_cash = req_cash
+            final_mpesa = req_mpesa
+
+        new_sale = Sale(
+            total_amount=final_total,
+            discount_amount=discount_amount,
+            coupon_code=applied_coupon,
+            payment_method=payment_method,
+            amount_cash=final_cash,
+            amount_mpesa=final_mpesa,
+            status='PENDING' if (payment_method == 'MPESA' or payment_method == 'SPLIT') else 'COMPLETED',
+            cashier_id=current_user_id,
+            created_at=datetime.utcnow()
+        )
+        
+        db.session.add(new_sale)
         db.session.flush()
 
-        # ===== Record Items + Deduct Stock =====
-        for product, qty, price, subtotal in validated_items:
-            product.stock -= qty
-            db.session.add(SaleItem(
-                sale_id=sale.id,
+        for v_item in valid_items:
+            product = v_item['product']
+            qty = v_item['quantity']
+            
+            product.stock_quantity -= qty
+
+            if product.stock_quantity <= 5:
+                existing_alert = Notification.query.filter_by(
+                    user_id=product.vendor_id, 
+                    message=f"Low Stock Alert: {product.name} is down to {product.stock_quantity} items."
+                ).first()
+
+                if not existing_alert:
+                    alert = Notification(
+                        user_id=product.vendor_id, 
+                        message=f"Low Stock Alert: {product.name} is down to {product.stock_quantity} items.",
+                        type='warning'
+                    )
+                    db.session.add(alert)
+            
+            sale_item = SaleItem(
+                sale_id=new_sale.id,
                 product_id=product.id,
+                product_name=product.name,
                 quantity=qty,
-                unit_price=price,
-                subtotal=subtotal
-            ))
+                price=v_item['price']
+            )
+            db.session.add(sale_item)
 
         db.session.commit()
+
+        return jsonify({
+            "msg": "Transaction processed successfully", 
+            "sale_id": new_sale.id,
+            "total": final_total,
+            "amount_mpesa": final_mpesa,
+            "status": new_sale.status
+        }), 201
+
     except Exception as e:
         db.session.rollback()
-        return {"msg": "Transaction failed", "error": str(e)}, 500
+        print(f"Transaction Error: {e}")
+        return jsonify({"msg": f"Transaction failed: {str(e)}"}), 500
 
-    return {
-        "message": "Checkout successful",
-        "transaction_id": sale.id,
-        "total": sale.order_total,
-        "surplus": surplus_amount,
-        "surplus_type": surplus_type,
-        "offline": offline,
-        "timestamp": sale.created_at.isoformat()
-    }, 201
-
-
-# ===========================
-# VENDOR LEDGER VIEW
-# ===========================
-@transaction_bp.route("/vendor/<int:vendor_id>", methods=["GET"])
+@transaction_bp.route('/validate-coupon', methods=['POST'])
 @jwt_required()
-@role_required("ADMIN", "VENDOR")
-def get_vendor_transactions(vendor_id):
+def validate_coupon():
+    try:
+        data = request.get_json()
+        code_text = data.get('code', '').upper().strip()
+        current_user_id = get_jwt_identity()
+        
+        user = User.query.get(current_user_id)
+        
+        vendor_id = user.id if user.role == 'VENDOR' else user.vendor_id
+        
+        if not vendor_id:
+             return jsonify({"msg": "Configuration Error: No linked vendor"}), 400
 
-    transactions = Sale.query.filter_by(vendor_id=vendor_id).order_by(Sale.created_at.desc()).all()
+        coupon = DiscountCode.query.filter_by(code=code_text, vendor_id=vendor_id).first()
 
-    return [{
-        "id": tx.id,
-        "event_id": tx.event_id,
-        "total": tx.order_total,
-        "paid": tx.amount_tendered,
-        "surplus": tx.surplus_amount,
-        "surplus_type": tx.surplus_type,
-        "method": tx.payment_method,
-        "status": tx.status,
-        "created_at": tx.created_at.isoformat()
-    } for tx in transactions], 200
+        if not coupon:
+            return jsonify({"valid": False, "msg": "Invalid Code"}), 404
+            
+        if not coupon.is_valid():
+            return jsonify({"valid": False, "msg": "Coupon Expired or Inactive"}), 400
+
+        return jsonify({
+            "valid": True, 
+            "msg": "Coupon Applied!",
+            "percentage": coupon.percentage,
+            "code": coupon.code
+        }), 200
+
+    except Exception as e:
+        print(f"Coupon Error: {e}")
+        return jsonify({"msg": "Validation failed"}), 500
+
+@transaction_bp.route('/coupons', methods=['GET'])
+@jwt_required()
+def get_available_coupons():
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        
+        vendor_id = user.id if user.role == 'VENDOR' else user.vendor_id
+        
+        if not vendor_id:
+            return jsonify([]), 200
+
+        all_codes = DiscountCode.query.filter_by(vendor_id=vendor_id, is_active=True).all()
+        
+        valid_codes = [c.to_dict() for c in all_codes if c.is_valid()]
+
+        return jsonify(valid_codes), 200
+
+    except Exception as e:
+        print(f"Coupon Fetch Error: {e}")
+        return jsonify([]), 500

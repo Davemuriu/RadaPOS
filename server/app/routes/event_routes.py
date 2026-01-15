@@ -1,70 +1,33 @@
-# app/routes/event_routes.py
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
-from app.models.event import Event, EventVendor
+from flask_jwt_extended import get_jwt_identity
 from app.extensions import db
-from app.utils.rbac import role_required
+from app.utils.decorators import admin_role_required
+from app.models.event import Event
+from app.constants.enums import AdminRoles
 
-event_bp = Blueprint("event", __name__)
+event_bp = Blueprint("events", __name__)
 
-# Get all events
-@event_bp.route("/", methods=["GET"])
-@jwt_required()
-def get_events():
-    events = Event.query.all()
-    return jsonify([{
-        "id": e.id,
-        "name": e.name,
-        "date": e.date.isoformat() if e.date else None,
-        "location": e.location
-    } for e in events]), 200
+@event_bp.get("")
+def list_events():
+    events = Event.query.filter_by(archived=False).order_by(Event.created_at.desc()).all()
+    return jsonify([e.to_dict() for e in events]), 200
 
-# Get single event
-@event_bp.route("/<int:event_id>", methods=["GET"])
-@jwt_required()
-def get_event(event_id):
-    event = Event.query.get_or_404(event_id)
-    return {
-        "id": event.id,
-        "name": event.name,
-        "date": event.date.isoformat() if event.date else None,
-        "location": event.location
-    }, 200
 
-# Create event (ADMIN only)
-@event_bp.route("/", methods=["POST"])
-@jwt_required()
-@role_required("ADMIN")
+@event_bp.post("")
+@admin_role_required(AdminRoles.MANAGER, AdminRoles.ADMINISTRATOR)
 def create_event():
-    data = request.get_json()
+    data = request.get_json() or {}
+    name = data.get("name")
+    if not name:
+        return jsonify({"error": "Event name is required"}), 400
+
     event = Event(
-        name=data["name"],
-        date=data.get("date"),
-        location=data.get("location")
+        name=name,
+        location=data.get("location"),
+        is_active=True,
+        archived=False,
+        created_by=int(get_jwt_identity())
     )
     db.session.add(event)
     db.session.commit()
-    return {"msg": "Event created", "event_id": event.id}, 201
-
-# Update event (ADMIN only)
-@event_bp.route("/<int:event_id>", methods=["PUT"])
-@jwt_required()
-@role_required("ADMIN")
-def update_event(event_id):
-    event = Event.query.get_or_404(event_id)
-    data = request.get_json()
-    event.name = data.get("name", event.name)
-    event.date = data.get("date", event.date)
-    event.location = data.get("location", event.location)
-    db.session.commit()
-    return {"msg": "Event updated"}, 200
-
-# Delete event (ADMIN only)
-@event_bp.route("/<int:event_id>", methods=["DELETE"])
-@jwt_required()
-@role_required("ADMIN")
-def delete_event(event_id):
-    event = Event.query.get_or_404(event_id)
-    db.session.delete(event)
-    db.session.commit()
-    return {"msg": "Event deleted"}, 200
+    return jsonify(event.to_dict()), 201
