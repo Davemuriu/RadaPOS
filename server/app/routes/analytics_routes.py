@@ -16,20 +16,26 @@ def get_cashier_summary():
         current_user_id = get_jwt_identity()
         user = User.query.get(current_user_id)
         
-        # Define Shift Window: Today (Adjusted for EAT +3)
         today_start_utc = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=3)
         
-        # 1. Fetch Completed Sales for this cashier today
         todays_sales = Sale.query.filter(
             Sale.cashier_id == current_user_id,
             Sale.status == 'COMPLETED',
             Sale.created_at >= today_start_utc
         ).all()
 
-        total_cash = sum(s.total_amount for s in todays_sales if s.payment_method == 'CASH')
-        total_mpesa = sum(s.total_amount for s in todays_sales if s.payment_method == 'MPESA')
-        
-        # 2. Recent Sales (Last 5)
+        total_cash = 0.0
+        total_mpesa = 0.0
+
+        for s in todays_sales:
+            if s.payment_method == 'CASH':
+                total_cash += float(s.total_amount)
+            elif s.payment_method == 'MPESA':
+                total_mpesa += float(s.total_amount)
+            elif s.payment_method == 'SPLIT':
+                total_cash += float(s.amount_cash or 0)
+                total_mpesa += float(s.amount_mpesa or 0)
+
         all_time_sales = Sale.query.filter_by(cashier_id=current_user_id, status='COMPLETED')\
             .order_by(Sale.created_at.desc()).limit(5).all()
         
@@ -43,7 +49,6 @@ def get_cashier_summary():
                 "time": local_time.strftime("%H:%M") 
             })
 
-        # 3. Top Selling Products
         top_products_query = db.session.query(
             SaleItem.product_name, 
             func.sum(SaleItem.quantity).label('total_qty')
@@ -55,7 +60,6 @@ def get_cashier_summary():
 
         top_products = [{"name": row[0], "count": int(row[1])} for row in top_products_query]
 
-        # 4. Low Stock Alerts
         vendor_id = user.vendor_id if user.role == 'CASHIER' else user.id
         low_stock_products = Product.query.filter(
             Product.vendor_id == vendor_id,
@@ -65,8 +69,8 @@ def get_cashier_summary():
         low_stock_alerts = [{"name": p.name, "stock": p.stock_quantity} for p in low_stock_products]
 
         return jsonify({
-            "total_cash": float(total_cash),
-            "total_mpesa": float(total_mpesa),
+            "total_cash": total_cash,
+            "total_mpesa": total_mpesa,
             "transactions_count": len(todays_sales),
             "recent_sales": recent_sales_data,
             "top_products": top_products,
@@ -87,13 +91,10 @@ def generate_shift_report():
         if not user:
             return jsonify({"msg": "User not found"}), 404
 
-        # Shift window (Today EAT)
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=3)
 
-        # Correct business name logic based on the 'employer' backref or 'vendor_id'
         business_name = "RadaPOS Retail"
         if user.role == 'CASHIER' and user.vendor_id:
-            # Safely fetch vendor info
             vendor = User.query.get(user.vendor_id)
             business_name = vendor.business_name if vendor else "RadaPOS Retail"
         else:
@@ -105,7 +106,18 @@ def generate_shift_report():
             Sale.created_at >= today_start
         ).all()
 
-        # Item summary using SQLAlchemy grouping
+        total_cash = 0.0
+        total_mpesa = 0.0
+
+        for s in sales:
+            if s.payment_method == 'CASH':
+                total_cash += float(s.total_amount)
+            elif s.payment_method == 'MPESA':
+                total_mpesa += float(s.total_amount)
+            elif s.payment_method == 'SPLIT':
+                total_cash += float(s.amount_cash or 0)
+                total_mpesa += float(s.amount_mpesa or 0)
+
         item_summary_query = db.session.query(
             SaleItem.product_name, 
             func.sum(SaleItem.quantity),
@@ -122,8 +134,8 @@ def generate_shift_report():
             "date": datetime.now().strftime("%Y-%m-%d"),
             "time_generated": datetime.now().strftime("%H:%M:%S"),
             "totals": {
-                "cash": float(sum(s.total_amount for s in sales if s.payment_method == 'CASH')),
-                "mpesa": float(sum(s.total_amount for s in sales if s.payment_method == 'MPESA')),
+                "cash": total_cash,
+                "mpesa": total_mpesa,
                 "grand_total": float(sum(s.total_amount for s in sales)),
                 "transaction_count": len(sales)
             },
@@ -132,6 +144,5 @@ def generate_shift_report():
 
         return jsonify(report), 200
     except Exception as e:
-        # Print error to terminal for debugging
         print(f"Shift Report Error: {str(e)}")
         return jsonify({"msg": "Failed to generate report", "error": str(e)}), 500
