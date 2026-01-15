@@ -1,10 +1,12 @@
 import string
 import secrets
+import os
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_mail import Message
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 from app.models.user import User
-from app.extensions import db, bcrypt, mail
+from app.extensions import db, bcrypt
 from app.utils.audit import audit_log 
 
 staff_bp = Blueprint('staff_bp', __name__)
@@ -73,29 +75,32 @@ def add_staff():
         db.session.commit()
 
         try:
-            msg = Message(
-                subject="RadaPOS - Your Login Credentials",
-                recipients=[data['email']],
-                body=f"""
-                Hello {data['name']},
-
-                You have been added as a Cashier on RadaPOS.
-                
-                Here are your login details:
-                Email: {data['email']}
-                Temporary Password: {temp_password}
-
-                Please login immediately. You will be prompted to change this password upon your first login.
-
-                Regards,
-                RadaPOS Systems.
+            message = Mail(
+                from_email=os.environ.get('MAIL_DEFAULT_SENDER'),
+                to_emails=data['email'],
+                subject='RadaPOS - Your Cashier Login Credentials',
+                html_content=f"""
+                <div style="font-family: Arial, sans-serif; padding: 20px;">
+                    <h2>Welcome to RadaPOS!</h2>
+                    <p>Hello {data['name']},</p>
+                    <p>You have been added as a Cashier. Please use the credentials below to log in:</p>
+                    <div style="background: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Email:</strong> {data['email']}</p>
+                        <p><strong>Temporary Password:</strong> <span style="font-family: monospace; font-size: 1.2em;">{temp_password}</span></p>
+                    </div>
+                    <p>You will be required to change this password immediately upon logging in.</p>
+                    <p>Regards,<br>RadaPOS Team</p>
+                </div>
                 """
             )
-            mail.send(msg)
-            print(f"Email sent successfully to {data['email']}")
+            
+            sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+            response = sg.send(message)
+            print(f"Email sent successfully to {data['email']} (Status: {response.status_code})")
             
         except Exception as email_error:
             print(f"EMAIL FAILED: {email_error}") 
+            # Still print backup credentials in logs just in case
             print(f"BACKUP CREDENTIALS -> Email: {data['email']} | Password: {temp_password}")
 
         return jsonify({
