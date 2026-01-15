@@ -33,22 +33,34 @@ def get_access_token():
         print(f"Token Error: {str(e)}")
         return None
 
-# --- STK PUSH WITH MANUAL CORS HANDLING ---
+# --- STK PUSH WITH STRICT CORS FIX ---
 @mpesa_bp.route('/pay', methods=['POST', 'OPTIONS'])
 def stk_push():
     # 1. Handle Preflight (Browser Check)
     if request.method == 'OPTIONS':
         response = make_response(jsonify({'status': 'ok'}))
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        
+        # DYNAMIC ORIGIN FIX:
+        # Instead of '*', we copy the exact Origin the browser sent us.
+        # This tricks the browser into thinking we whitelisted them specifically.
+        origin = request.headers.get('Origin') or '*'
+        
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response, 200
 
     # 2. Verify Security Manually (Only for POST)
     try:
         verify_jwt_in_request()
     except Exception as e:
-        return jsonify({"msg": "Unauthorized", "error": str(e)}), 401
+        # Still return CORS headers even on error, so the browser can read the error
+        response = make_response(jsonify({"msg": "Unauthorized", "error": str(e)}))
+        origin = request.headers.get('Origin') or '*'
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response, 401
 
     # 3. Process Payment
     data = request.get_json()
@@ -89,6 +101,7 @@ def stk_push():
         req = requests.post('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', json=payload, headers=headers)
         res_data = req.json()
         
+        # Build Response with CORS Headers
         if 'ResponseCode' in res_data and res_data['ResponseCode'] == '0':
             new_payment = MpesaPayment(
                 sale_id=sale_id, 
@@ -100,15 +113,24 @@ def stk_push():
             )
             db.session.add(new_payment)
             db.session.commit()
-            print(f"STK Success: {res_data['CheckoutRequestID']}")
-            return jsonify({"msg": "Sent", "checkout_request_id": res_data['CheckoutRequestID'], "sale_id": sale_id}), 200
+            
+            response = make_response(jsonify({"msg": "Sent", "checkout_request_id": res_data['CheckoutRequestID'], "sale_id": sale_id}))
         else:
-            print(f"STK Failed: {res_data}")
-            return jsonify({"msg": "STK Push Failed", "error": res_data}), 400
+            response = make_response(jsonify({"msg": "STK Push Failed", "error": res_data}), 400)
+
+        # Attach CORS headers to the final success/fail response
+        origin = request.headers.get('Origin') or '*'
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
 
     except Exception as e:
         print(f"STK System Error: {e}")
-        return jsonify({"msg": "Request failed", "error": str(e)}), 500
+        response = make_response(jsonify({"msg": "Request failed", "error": str(e)}), 500)
+        origin = request.headers.get('Origin') or '*'
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
 
 @mpesa_bp.route('/callback', methods=['POST'])
 def callback():
