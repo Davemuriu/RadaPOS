@@ -81,7 +81,6 @@ const LandingPage = () => {
         {/* Background Video Layer */}
         <div className="hero-video-background">
           <video autoPlay loop muted playsInline className="video-bg">
-            {/* Placeholder video - Replace with your actual asset */}
             <source src="https://assets.mixkit.co/videos/preview/mixkit-people-working-in-a-busy-restaurant-kitchen-4361-large.mp4" type="video/mp4" />
           </video>
           <div className="video-overlay-gradient"></div>
@@ -102,7 +101,6 @@ const LandingPage = () => {
             reliability, and insights you need to sell without limits.
           </p>
 
-          {/* Replaced Buttons with simple scroll indicator or clean space */}
           <div className="scroll-indicator" onClick={() => scrollToSection('features')}>
             <span>Discover More</span>
             <div className="arrow-down"></div>
@@ -110,9 +108,8 @@ const LandingPage = () => {
         </div>
       </header>
 
-      {/* 3. BENTO GRID - GLASSMORPHISM ON GREEN */}
+      {/* 3. FEATURES SECTION */}
       <section className="features" id="features">
-        {/* Ambient Green Background */}
         <div className="green-ambient-bg"></div>
 
         <div className="container relative-z">
@@ -179,7 +176,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* 4. FIXED vs EVENTS (Comparison Section) */}
+      {/* 4. FIXED vs EVENTS */}
       <section className="solutions" id="solutions">
         <div className="container">
           <div className="section-head">
@@ -239,7 +236,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* 6. LOGIN PORTAL SECTION (Separated) */}
+      {/* 6. LOGIN PORTAL SECTION */}
       <section className="login-section" id="login-section">
         <div className="container">
           <div className="section-head">
@@ -248,7 +245,8 @@ const LandingPage = () => {
           </div>
 
           <div className="portal-grid">
-            <div className="portal-card" onClick={() => navigate('/login')}>
+            {/* VENDOR LOGIN */}
+            <div className="portal-card" onClick={() => navigate('/login?role=vendor')}>
               <div className="p-icon-box vendor"><Store size={24} /></div>
               <div className="p-text">
                 <strong>Vendor Portal</strong>
@@ -256,7 +254,9 @@ const LandingPage = () => {
               </div>
               <ArrowRight size={16} className="arrow" />
             </div>
-            <div className="portal-card" onClick={() => navigate('/login')}>
+
+            {/* CASHIER LOGIN */}
+            <div className="portal-card" onClick={() => navigate('/login?role=cashier')}>
               <div className="p-icon-box cashier"><ShoppingBag size={24} /></div>
               <div className="p-text">
                 <strong>Cashier Terminal</strong>
@@ -264,7 +264,9 @@ const LandingPage = () => {
               </div>
               <ArrowRight size={16} className="arrow" />
             </div>
-            <div className="portal-card" onClick={() => navigate('/login')}>
+
+            {/* ADMIN LOGIN */}
+            <div className="portal-card" onClick={() => navigate('/login?role=admin')}>
               <div className="p-icon-box admin"><LayoutDashboard size={24} /></div>
               <div className="p-text">
                 <strong>Admin Console</strong>

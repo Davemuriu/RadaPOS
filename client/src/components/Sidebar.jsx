@@ -23,7 +23,6 @@ const Sidebar = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Normalize role to handle case sensitivity and default to 'GUEST'
   const userRole = (user?.role || 'GUEST').toUpperCase();
 
   const getMenuItems = () => {

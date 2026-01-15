@@ -24,18 +24,33 @@ const LoginPage = () => {
     const location = useLocation();
     const { login } = useAuth();
 
-    const contextRole = (location.state?.role || 'vendor').toLowerCase();
+    const searchParams = new URLSearchParams(location.search);
+    const queryRole = searchParams.get('role');
+    const contextRole = (location.state?.role || queryRole || 'vendor').toLowerCase();
 
     const getRoleConfig = (role) => {
-        switch (role) {
-            case 'admin':
-                return { title: 'Admin Console', subtitle: 'System Owner Access', icon: <LayoutDashboard size={24} />, color: '#f59e0b' };
-            case 'cashier':
-                return { title: 'Cashier Terminal', subtitle: 'Point of Sale Access', icon: <ShoppingBag size={24} />, color: '#3b82f6' };
-            case 'vendor':
-            default:
-                return { title: 'Vendor Portal', subtitle: 'Store Management Access', icon: <Store size={24} />, color: '#10b981' };
+        if (role.includes('admin')) {
+            return {
+                title: 'Admin Console',
+                subtitle: 'System Owner Access',
+                icon: <LayoutDashboard size={24} />,
+                color: '#f59e0b'
+            };
         }
+        if (role.includes('cashier')) {
+            return {
+                title: 'Cashier Terminal',
+                subtitle: 'Point of Sale Access',
+                icon: <ShoppingBag size={24} />,
+                color: '#3b82f6'
+            };
+        }
+        return {
+            title: 'Vendor Portal',
+            subtitle: 'Store Management Access',
+            icon: <Store size={24} />,
+            color: '#10b981'
+        };
     };
 
     const config = getRoleConfig(contextRole);
@@ -70,7 +85,7 @@ const LoginPage = () => {
                     navigate('/vendor/dashboard');
                     break;
                 case 'cashier':
-                    navigate('/cashier/dashboard');
+                    navigate('/pos');
                     break;
                 default:
                     navigate('/');
