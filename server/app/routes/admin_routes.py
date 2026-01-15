@@ -1,13 +1,12 @@
 from flask import Blueprint, jsonify, request, make_response, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_mail import Message
 from app.models.user import User
 from app.models.transaction import Sale
 from app.models.wallet import Settlement, Wallet
 from app.models.event import Event
 from app.models.audit import AuditLog
 from app.models.notification import Notification
-from app.extensions import db, bcrypt, mail
+from app.extensions import db, bcrypt
 from sqlalchemy import func
 import functools
 from datetime import datetime, time, timedelta
@@ -16,6 +15,7 @@ import csv
 import io
 import string
 import secrets
+import requests
 
 admin_bp = Blueprint('admin_bp', __name__)
 
@@ -37,32 +37,47 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
-def send_async_email(app, msg):
-    with app.app_context():
-        try:
-            mail.send(msg)
-        except Exception as e:
-            print(f"Failed to send email async: {e}")
+def send_http_email_task(api_key, sender, to_email, subject, content):
+    if not api_key:
+        return
+
+    url = "https://api.sendgrid.com/v3/mail/send"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "personalizations": [{"to": [{"email": to_email}]}],
+        "from": {"email": sender},
+        "subject": subject,
+        "content": [{"type": "text/plain", "value": content}]
+    }
+
+    try:
+        requests.post(url, headers=headers, json=payload)
+    except Exception:
+        pass
 
 def send_credentials_email(user, password, role_name):
-    try:
-        msg = Message(f"RadaPOS {role_name} Access Credentials", recipients=[user.email])
-        msg.body = f"""
-        Hello {user.name},
+    api_key = current_app.config.get('SENDGRID_API_KEY')
+    sender = current_app.config.get('MAIL_DEFAULT_SENDER')
+    
+    subject = f"RadaPOS {role_name} Access Credentials"
+    content = f"""
+    Hello {user.name},
 
-        You have been registered as a {role_name} on RadaPOS.
+    You have been registered as a {role_name} on RadaPOS.
 
-        Your login details are:
-        Email: {user.email}
-        Temporary Password: {password}
+    Your login details are:
+    Email: {user.email}
+    Temporary Password: {password}
 
-        Please log in at your respective portal and change your password immediately.
-        """
-        Thread(target=send_async_email, args=(current_app._get_current_object(), msg)).start()
-        return True
-    except Exception as e:
-        print(f"Failed to initiate email to {user.email}: {e}")
-        return False
+    Please log in at your respective portal and change your password immediately.
+    """
+    
+    Thread(target=send_http_email_task, args=(api_key, sender, user.email, subject, content)).start()
+    return True
 
 @admin_bp.route('/dashboard/graph', methods=['GET'])
 @jwt_required()
@@ -328,7 +343,9 @@ def manage_vendors_root():
             if event: event.vendors.append(new_vendor)
             
         db.session.commit()
+        
         send_credentials_email(new_vendor, temp_pw, "Vendor")
+        
         log_admin_action(get_jwt_identity(), "Created Vendor", f"Vendor: {new_vendor.email}")
         return jsonify({"msg": "Vendor created and email sent"}), 201
 
@@ -395,7 +412,9 @@ def reset_vendor_password(id):
         vendor.set_password(temp_pw)
         vendor.must_change_password = True 
         db.session.commit()
+        
         send_credentials_email(vendor, temp_pw, "Vendor (Password Reset)")
+        
         log_admin_action(get_jwt_identity(), "Reset Vendor Password", f"Vendor: {vendor.email}")
         return jsonify({"msg": "Password reset successful"}), 200
     except Exception as e:
@@ -421,7 +440,9 @@ def manage_admins_root():
         new_user.set_password(temp_pw)
         db.session.add(new_user)
         db.session.commit()
+        
         send_credentials_email(new_user, temp_pw, "Administrator")
+        
         log_admin_action(get_jwt_identity(), "Created Admin", f"User: {data['email']}")
         return jsonify({"msg": "Admin created"}), 201
 

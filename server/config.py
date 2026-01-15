@@ -1,5 +1,5 @@
 import os
-import socket 
+import socket
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -28,21 +28,8 @@ class Config:
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or 'jwt-secret-key'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)
 
-    # EMAIL CONFIGURATION
-    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-    MAIL_PORT = int(os.environ.get('MAIL_PORT') or 587)
-    
-    if MAIL_PORT == 587:
-        MAIL_USE_TLS = True
-        MAIL_USE_SSL = False
-    else:
-        MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'False').lower() in ['true', 'on', '1']
-        MAIL_USE_SSL = os.environ.get('MAIL_USE_SSL', 'True').lower() in ['true', 'on', '1']
-    
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER')
-    
     MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY')
     MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET')
     MPESA_SHORTCODE = os.environ.get('MPESA_SHORTCODE')
