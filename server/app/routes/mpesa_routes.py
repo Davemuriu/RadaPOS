@@ -73,7 +73,6 @@ def stk_push():
 
         headers = { "Authorization": f"Bearer {token}" }
 
-        # Log for debugging
         print(f"Sending STK to {phone_number} for {amount} KES")
 
         req = requests.post('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', json=payload, headers=headers)
@@ -194,6 +193,13 @@ def download_receipt(sale_id):
         footer_text = getattr(vendor, 'receipt_footer', "Thank you for shopping with us!") or "Thank you for shopping!"
         phone = vendor.phone_number if vendor else ""
 
+        # Fetch M-Pesa Code if exists
+        mpesa_code = None
+        if sale.payment_method in ['MPESA', 'SPLIT']:
+            mpesa_txn = MpesaPayment.query.filter_by(sale_id=sale.id, result_code=0).first()
+            if mpesa_txn:
+                mpesa_code = mpesa_txn.mpesa_receipt_number
+
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=(300, 750))
 
@@ -219,6 +225,11 @@ def download_receipt(sale_id):
         p.drawString(20, y, f"Date: {local_time.strftime('%d/%m/%Y %H:%M')}")
         y -= 15
         p.drawString(20, y, f"Cashier: {sale.cashier.name if sale.cashier else 'N/A'}")
+        
+        if mpesa_code:
+            y -= 15
+            p.drawString(20, y, f"M-Pesa Ref: {mpesa_code}")
+            
         y -= 25
 
         p.setFont("Helvetica-Bold", 9)
@@ -271,7 +282,7 @@ def download_receipt(sale_id):
              p.drawString(20, y, "Paid via M-Pesa:")
              p.drawRightString(280, y, f"{sale.amount_mpesa:,.2f}")
 
-        landing_page_url = "https://radapos-landing.vercel.app" 
+        landing_page_url = "https://rada-pos.vercel.app/" 
         qr = qrcode.QRCode(box_size=10, border=1)
         qr.add_data(landing_page_url)
         qr.make(fit=True)
