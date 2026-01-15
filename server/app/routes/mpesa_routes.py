@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models.transaction import Sale, SaleItem, MpesaPayment
 from app.models.product import Product
@@ -12,19 +12,19 @@ import io
 import qrcode
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-from config import Config
-from app.services.wallet_service import WalletService 
 
 mpesa_bp = Blueprint('mpesa_bp', __name__)
 
 def get_mpesa_password():
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    password_str = f"{Config.MPESA_SHORTCODE}{Config.MPESA_PASSKEY}{timestamp}"
+    shortcode = current_app.config.get('MPESA_SHORTCODE')
+    passkey = current_app.config.get('MPESA_PASSKEY')
+    password_str = f"{shortcode}{passkey}{timestamp}"
     return base64.b64encode(password_str.encode()).decode('utf-8'), timestamp
 
 def get_access_token():
-    consumer_key = Config.MPESA_CONSUMER_KEY
-    consumer_secret = Config.MPESA_CONSUMER_SECRET
+    consumer_key = current_app.config.get('MPESA_CONSUMER_KEY')
+    consumer_secret = current_app.config.get('MPESA_CONSUMER_SECRET')
     try:
         r = requests.get("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", auth=(consumer_key, consumer_secret))
         r.raise_for_status()
@@ -33,8 +33,12 @@ def get_access_token():
         print(f"Token Error: {str(e)}")
         return None
 
-@mpesa_bp.route('/pay', methods=['POST'])
+@mpesa_bp.route('/pay', methods=['POST', 'OPTIONS'])
+@jwt_required()
 def stk_push():
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+        
     data = request.get_json()
     try:
         amount = int(float(data.get('amount', 0))) 
@@ -49,16 +53,17 @@ def stk_push():
             return jsonify({"msg": "M-Pesa Auth Failed"}), 500
 
         password, timestamp = get_mpesa_password()
-        callback_url = Config.MPESA_CALLBACK_URL
+        shortcode = current_app.config.get('MPESA_SHORTCODE')
+        callback_url = current_app.config.get('MPESA_CALLBACK_URL')
 
         payload = {
-            "BusinessShortCode": Config.MPESA_SHORTCODE,
+            "BusinessShortCode": shortcode,
             "Password": password,
             "Timestamp": timestamp,
             "TransactionType": "CustomerPayBillOnline",
             "Amount": amount, 
             "PartyA": phone_number,
-            "PartyB": Config.MPESA_SHORTCODE,
+            "PartyB": shortcode,
             "PhoneNumber": phone_number,
             "CallBackURL": callback_url,
             "AccountReference": "RadaPOS",
@@ -71,6 +76,7 @@ def stk_push():
         res_data = req.json()
         
         if 'ResponseCode' in res_data and res_data['ResponseCode'] == '0':
+            # Create payment record
             new_payment = MpesaPayment(
                 sale_id=sale_id, 
                 checkout_request_id=res_data['CheckoutRequestID'],
@@ -86,7 +92,8 @@ def stk_push():
             return jsonify({"msg": "STK Push Failed", "error": res_data}), 400
 
     except Exception as e:
-        return jsonify({"msg": "Request failed"}), 500
+        print(f"STK Error: {e}")
+        return jsonify({"msg": "Request failed", "error": str(e)}), 500
 
 @mpesa_bp.route('/callback', methods=['POST'])
 def callback():
@@ -117,6 +124,7 @@ def callback():
                 sale = payment.parent_sale
                 sale.status = 'COMPLETED'
                 
+                # Logic to find vendor
                 target_vendor_id = None
                 if sale.items:
                       prod = Product.query.get(sale.items[0].product_id)
@@ -127,6 +135,9 @@ def callback():
                       if cashier: target_vendor_id = cashier.vendor_id if cashier.role != 'VENDOR' else cashier.id
 
                 if target_vendor_id:
+                      # Import Service inside function to prevent Circular Import Crash
+                      from app.services.wallet_service import WalletService
+                      
                       net_amount = float(sale.total_amount) * 0.90
                       WalletService.add_funds(vendor_id=target_vendor_id, amount=net_amount)
                       
@@ -148,6 +159,7 @@ def callback():
 
     except Exception as e:
         db.session.rollback()
+        print(f"Callback Error: {e}")
         return jsonify({"ResultCode": 1, "ResultDesc": "Internal Error"}), 500
 
 @mpesa_bp.route('/status/<checkout_id>', methods=['GET'])
@@ -281,4 +293,5 @@ def download_receipt(sale_id):
         buffer.seek(0)
         return send_file(buffer, as_attachment=True, download_name=f"Receipt_{sale.id}.pdf", mimetype='application/pdf')
     except Exception as e:
+        print(f"Receipt Error: {e}")
         return jsonify({"msg": "Failed to generate receipt"}), 500
