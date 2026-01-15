@@ -34,7 +34,6 @@ def get_vendor_wallet():
         }), 200
     except Exception as e:
         print(f"Wallet Fetch Error: {e}")
-        # Return 0.0 on error to prevent UI crash
         return jsonify({
             "current_balance": 0.0,
             "currency": "KES"
@@ -149,7 +148,6 @@ def request_withdrawal():
     if not wallet or wallet.current_balance < amount:
         return jsonify({"msg": "Insufficient funds"}), 400
 
-    # For withdrawal requests, we DEDUCT immediately but status is PENDING
     wallet.current_balance -= amount
     
     settlement = Settlement(
@@ -175,20 +173,17 @@ def request_withdrawal():
 
     return jsonify({"msg": "Withdrawal request submitted for approval"}), 200
 
-# --- FIXED HISTORY ROUTE ---
 @vendor_bp.route('/wallet/history', methods=['GET'])
 @jwt_required()
 def get_wallet_history():
     try:
         current_user_id = get_jwt_identity()
         
-        # 1. Fetch transactions safely
         transactions = Settlement.query.filter_by(vendor_id=current_user_id)\
             .order_by(Settlement.created_at.desc()).limit(20).all()
 
         output = []
         for t in transactions:
-            # 2. Determine readable type based on status
             t_type = "Transaction"
             if t.status == 'pending': 
                 t_type = "Withdrawal Request"
@@ -199,7 +194,6 @@ def get_wallet_history():
             elif t.status == 'rejected': 
                 t_type = "Refunded (Rejected)"
 
-            # 3. Build Safe Object (No Crashes on None values)
             output.append({
                 "id": t.id,
                 "amount": float(t.amount or 0),
@@ -212,7 +206,6 @@ def get_wallet_history():
         return jsonify(output), 200
     except Exception as e:
         print(f"History Logic Error: {e}")
-        # Return empty list on error so the page loads at least
         return jsonify([]), 200
 
 @vendor_bp.route('/reports/export-pdf', methods=['GET'])

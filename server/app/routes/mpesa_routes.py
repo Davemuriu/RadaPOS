@@ -16,7 +16,6 @@ from reportlab.lib.utils import ImageReader
 
 mpesa_bp = Blueprint('mpesa_bp', __name__)
 
-# Enable CORS for this entire blueprint
 CORS(mpesa_bp)
 
 def get_mpesa_password():
@@ -37,9 +36,8 @@ def get_access_token():
         print(f"Token Error: {str(e)}")
         return None
 
-# --- STK PUSH ROUTE ---
 @mpesa_bp.route('/pay', methods=['POST'])
-@cross_origin() # <--- MUST BE AT THE TOP to handle OPTIONS request
+@cross_origin()
 @jwt_required()
 def stk_push():
     data = request.get_json()

@@ -7,7 +7,6 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     
-    # Global CORS (Good to keep as backup)
     CORS(app, resources={r"/*": {
         "origins": [
             "http://localhost:5173",

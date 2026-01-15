@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import api from '../../services/api';
 import { Wallet, ArrowUpRight, ArrowDownLeft, History, Loader2, AlertCircle, X, User, Phone, DollarSign } from 'lucide-react';
+import '../../styles/Vendor/VendorManagement.css';
+import '../../styles/Admin/AdminDashboard.css';
 
 const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
   const [formData, setFormData] = useState({
