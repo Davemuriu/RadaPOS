@@ -8,6 +8,7 @@ const ForcePasswordChange = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    const [currentPassword, setCurrentPassword] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [resetToken, setResetToken] = useState('');
@@ -28,7 +29,6 @@ const ForcePasswordChange = () => {
             setMode('RESET_FLOW');
             setEmail(location.state.email);
         }
-
         else {
             navigate('/login', { replace: true });
         }
@@ -63,11 +63,15 @@ const ForcePasswordChange = () => {
                 setTimeout(() => navigate('/login'), 3000);
 
             } else if (mode === 'FORCE_FLOW') {
+                if (!currentPassword) {
+                    throw new Error("Please enter the temporary password sent to your email.");
+                }
+
                 const tempToken = localStorage.getItem('temp_auth_token');
                 const config = { headers: { Authorization: `Bearer ${tempToken}` } };
 
                 await api.post('/auth/change-password', {
-                    current_password: "FORCE_OVERRIDE",
+                    current_password: currentPassword,
                     new_password: password
                 }, config);
 
@@ -98,7 +102,7 @@ const ForcePasswordChange = () => {
                     <p>
                         {mode === 'RESET_FLOW'
                             ? `Enter the token sent to ${email}`
-                            : 'You must update your password to continue.'}
+                            : 'Enter your temporary password to set a new one.'}
                     </p>
                 </div>
 
@@ -119,6 +123,7 @@ const ForcePasswordChange = () => {
                             </div>
                         )}
 
+                        {/* RESET FLOW: Token Input */}
                         {mode === 'RESET_FLOW' && (
                             <div className="form-group">
                                 <label>Reset Token</label>
@@ -130,6 +135,23 @@ const ForcePasswordChange = () => {
                                         onChange={(e) => setResetToken(e.target.value)}
                                         placeholder="Paste token from email"
                                         className="font-mono"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Current Password Input */}
+                        {mode === 'FORCE_FLOW' && (
+                            <div className="form-group">
+                                <label>Temporary Password (From Email)</label>
+                                <div className="input-icon-wrapper">
+                                    <div className="icon-box"><Key size={18} /></div>
+                                    <input
+                                        type="password"
+                                        value={currentPassword}
+                                        onChange={(e) => setCurrentPassword(e.target.value)}
+                                        placeholder="Enter temporary password"
                                         required
                                     />
                                 </div>
