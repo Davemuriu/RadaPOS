@@ -20,6 +20,7 @@ class Settlement(db.Model):
     sale_id = db.Column(db.Integer, db.ForeignKey('transactions.id'), nullable=True)
     amount = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), default='pending')
+    notes = db.Column(db.String(255), nullable=True)
     mpesa_receipt = db.Column(db.String(50), nullable=True)
     processed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -1,7 +1,6 @@
 import axios from 'axios';
 
 const api = axios.create({
-
     baseURL: 'http://localhost:5555/api',
 });
 
@@ -20,7 +19,6 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response && error.response.status === 401) {
-            // Check for temp_auth_token to avoid kicking users off ForcePasswordChange
             const isChangingPassword = window.location.pathname === '/force-password-change';
 
             if (!isChangingPassword && window.location.pathname !== '/login' && window.location.pathname !== '/') {
@@ -33,5 +31,8 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+export const directPayout = (data) => api.post('/auth/payout-direct', data);
+export const getWallet = () => api.get('/vendor/wallet');
 
 export default api;

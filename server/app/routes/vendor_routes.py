@@ -16,6 +16,69 @@ import io
 
 vendor_bp = Blueprint('vendor_bp', __name__)
 
+@vendor_bp.route('/wallet', methods=['GET'])
+@jwt_required()
+def get_vendor_wallet():
+    try:
+        current_user_id = get_jwt_identity()
+        wallet = Wallet.query.filter_by(vendor_id=current_user_id).first()
+        
+        if not wallet:
+            wallet = Wallet(vendor_id=current_user_id, current_balance=0.0)
+            db.session.add(wallet)
+            db.session.commit()
+
+        return jsonify({
+            "current_balance": float(wallet.current_balance),
+            "currency": "KES"
+        }), 200
+    except Exception as e:
+        print(f"Wallet Fetch Error: {e}")
+        return jsonify({"msg": "Server Error"}), 500
+
+# DIRECT PAYOUT
+@vendor_bp.route('/wallet/payout-direct', methods=['POST'])
+@jwt_required()
+def direct_payout():
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        amount = float(data.get('amount', 0))
+        recipient = data.get('recipient_name')
+        phone = data.get('phone_number')
+
+        # Validation
+        if amount <= 0:
+            return jsonify({"msg": "Invalid amount"}), 400
+        
+        wallet = Wallet.query.filter_by(vendor_id=current_user_id).first()
+        if not wallet or wallet.current_balance < amount:
+            return jsonify({"msg": "Insufficient funds"}), 400
+
+        # ATOMIC DEDUCTION
+        wallet.current_balance -= amount
+        payout = Settlement(
+            vendor_id=current_user_id,
+            amount=amount,
+            status='paid', 
+            notes=f"Direct Payout to {recipient} ({phone})"
+        )
+        
+        db.session.add(payout)
+        db.session.commit()
+
+        return jsonify({
+            "msg": f"Successfully paid KES {amount:,.2f} to {recipient}", 
+            "new_balance": wallet.current_balance
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Payout Error: {e}")
+        return jsonify({"msg": "Transaction failed"}), 500
+
+
 @vendor_bp.route('/stats', methods=['GET'])
 @jwt_required()
 def get_vendor_stats():
@@ -82,12 +145,14 @@ def request_withdrawal():
     if not wallet or wallet.current_balance < amount:
         return jsonify({"msg": "Insufficient funds"}), 400
 
+    # For withdrawal requests, we DEDUCT immediately but status is PENDING
     wallet.current_balance -= amount
     
     settlement = Settlement(
         vendor_id=current_user_id,
         amount=amount, 
-        status="pending" 
+        status="pending",
+        notes="Withdrawal Request to Admin"
     )
     db.session.add(settlement)
 
@@ -119,7 +184,7 @@ def get_wallet_history():
         "amount": float(t.amount),
         "status": t.status,
         "date": t.created_at.strftime("%Y-%m-%d %H:%M"),
-        "type": "Withdrawal" if t.sale_id is None else "Sale Credit"
+        "type": "Withdrawal" if t.status == 'pending' else ("Direct Payout" if t.status == 'paid' else "Transaction")
     } for t in transactions]), 200
 
 @vendor_bp.route('/reports/export-pdf', methods=['GET'])

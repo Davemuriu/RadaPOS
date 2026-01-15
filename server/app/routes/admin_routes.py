@@ -139,7 +139,6 @@ def get_wallet_overview():
 @jwt_required()
 @admin_required
 def get_all_withdrawals():
-    # Corrected JOIN: Uses Settlement.vendor_id explicitly
     withdrawals = db.session.query(Settlement, User)\
         .join(User, Settlement.vendor_id == User.id)\
         .filter(Settlement.sale_id.is_(None))\
@@ -147,13 +146,18 @@ def get_all_withdrawals():
     
     output = []
     for w, u in withdrawals:
+        destination = u.phone_number
+        if w.notes and ("07" in w.notes or "254" in w.notes):
+             destination = w.notes.replace("Withdrawal Request to ", "").replace("Withdrawal to ", "").strip()
+
         output.append({
             "id": w.id,
             "vendor_name": u.business_name if u.business_name else u.name,
             "vendor_email": u.email,
             "amount": float(w.amount),
             "status": w.status,
-            "mpesa_number": u.phone_number,
+            "mpesa_number": destination,
+            "notes": w.notes,
             "created_at": w.created_at.isoformat()
         })
     
@@ -209,6 +213,8 @@ def reject_withdrawal(id):
             vendor_wallet.current_balance += withdrawal.amount
         
         withdrawal.status = 'rejected'
+        # LOGIC FIX: Add rejection note
+        withdrawal.notes = (withdrawal.notes or "") + " [Rejected by Admin]"
         
         # Notify Vendor
         notif = Notification(

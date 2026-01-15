@@ -34,7 +34,6 @@ const ForgotPasswordPage = () => {
     };
 
     const config = getRoleConfig(contextRole);
-    // ---------------------------------------
 
     const handleSubmit = async (e) => {
         e.preventDefault();
