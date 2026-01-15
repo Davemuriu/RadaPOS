@@ -1,6 +1,7 @@
 from app.extensions import db
 from datetime import datetime
 
+
 class Sale(db.Model):
     __tablename__ = 'transactions'
     __table_args__ = {'extend_existing': True}
@@ -25,6 +26,7 @@ class Sale(db.Model):
     cashier = db.relationship('User', backref='sales', lazy=True)
     items = db.relationship('SaleItem', backref='parent_sale', cascade="all, delete-orphan", lazy=True)
     mpesa_details = db.relationship('MpesaPayment', backref='parent_sale', cascade="all, delete-orphan", uselist=False, lazy=True)
+
 
 class SaleItem(db.Model):
     __tablename__ = 'transaction_items'

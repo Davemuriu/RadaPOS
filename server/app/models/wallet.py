@@ -11,6 +11,7 @@ class Wallet(db.Model):
 
     vendor = db.relationship('User', backref=db.backref('wallet', uselist=False))
 
+
 class Settlement(db.Model):
     __tablename__ = 'settlements'
 
