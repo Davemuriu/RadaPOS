@@ -10,8 +10,9 @@ import {
   X,
   User,
   Phone,
-  DollarSign,
-  CheckCircle
+  CheckCircle,
+  Sun,
+  Moon
 } from 'lucide-react';
 import '../../styles/Vendor/VendorManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
@@ -59,7 +60,7 @@ const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
       <div className="modal-content">
         <div className="modal-header">
           <h3>
-            <ArrowUpRight className="icon-blue" size={20} />
+            <ArrowUpRight className="text-indigo" size={20} />
             Direct Payout
           </h3>
           <button onClick={onClose} className="close-btn">
@@ -70,12 +71,12 @@ const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
         <div className="modal-body">
           <form onSubmit={handleSubmit}>
             {error && (
-              <div className="alert alert-error">
+              <div className="alert-box error">
                 <AlertCircle size={18} /> {error}
               </div>
             )}
             {successMsg && (
-              <div className="alert alert-success">
+              <div className="alert-box success">
                 <CheckCircle size={18} /> {successMsg}
               </div>
             )}
@@ -88,6 +89,7 @@ const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
                   type="text"
                   required
                   placeholder="e.g. John Doe"
+                  className="search-input"
                   value={formData.recipient_name}
                   onChange={e => setFormData({ ...formData, recipient_name: e.target.value })}
                 />
@@ -102,6 +104,7 @@ const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
                   type="text"
                   required
                   placeholder="07XX XXX XXX"
+                  className="search-input"
                   value={formData.phone_number}
                   onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
                 />
@@ -117,6 +120,7 @@ const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
                   required
                   min="1"
                   placeholder="0.00"
+                  className="search-input"
                   value={formData.amount}
                   onChange={e => setFormData({ ...formData, amount: e.target.value })}
                 />
@@ -170,7 +174,7 @@ const WithdrawalRequestModal = ({ onClose, onSuccess, maxAmount }) => {
       <div className="modal-content">
         <div className="modal-header">
           <h3>
-            <ArrowDownLeft className="icon-green" size={20} />
+            <ArrowDownLeft className="text-emerald" size={20} />
             Withdraw Funds
           </h3>
           <button onClick={onClose} className="close-btn">
@@ -181,7 +185,7 @@ const WithdrawalRequestModal = ({ onClose, onSuccess, maxAmount }) => {
         <div className="modal-body">
           <form onSubmit={handleSubmit}>
             {error && (
-              <div className="alert alert-error">
+              <div className="alert-box error">
                 <AlertCircle size={18} /> {error}
               </div>
             )}
@@ -196,6 +200,7 @@ const WithdrawalRequestModal = ({ onClose, onSuccess, maxAmount }) => {
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0.00"
                   min="1"
+                  className="search-input"
                   required
                 />
               </div>
@@ -232,6 +237,19 @@ export default function WalletPage() {
   const [showPayout, setShowPayout] = useState(false);
   const [showWithdrawal, setShowWithdrawal] = useState(false);
 
+  // Theme State
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+
+  useEffect(() => {
+    // Apply theme to document
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
   const fetchData = async () => {
     try {
       const walletRes = await api.get('/vendor/wallet');
@@ -253,21 +271,29 @@ export default function WalletPage() {
 
   const getStatusClass = (status) => {
     switch (status?.toLowerCase()) {
-      case 'completed': return 'status-completed';
-      case 'paid': return 'status-paid';
-      case 'pending': return 'status-pending';
-      case 'rejected': return 'status-rejected';
-      default: return 'status-default';
+      case 'completed': return 'status-badge completed';
+      case 'paid': return 'status-badge status-paid';
+      case 'pending': return 'status-badge pending';
+      case 'rejected': return 'status-badge failed';
+      default: return 'status-badge status-default';
     }
   };
 
   return (
-    <div className="wallet-page-container">
-      {/* HEADER SECTION */}
-      <div className="wallet-header-card">
+    <div className="wallet-page-container management-container">
+      {/* Top Bar with Theme Toggle */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-main">My Wallet</h1>
+        <button onClick={toggleTheme} className="theme-toggle" aria-label="Toggle Theme">
+          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+        </button>
+      </div>
+
+      {/* HEADER CARD (Wallet Balance & Actions) */}
+      <div className="wallet-header-card stat-card">
         <div className="wallet-balance-section">
           <h2>
-            <Wallet size={18} className="icon-green" />
+            <Wallet size={18} className="text-emerald" />
             Available Balance
           </h2>
           <div className="balance-display">
@@ -279,14 +305,14 @@ export default function WalletPage() {
         <div className="wallet-actions-group">
           <button
             onClick={() => setShowWithdrawal(true)}
-            className="btn btn-primary btn-withdraw"
+            className="btn btn-primary"
           >
             <ArrowDownLeft size={20} />
             Withdraw Funds
           </button>
           <button
             onClick={() => setShowPayout(true)}
-            className="btn btn-outline btn-transfer"
+            className="btn btn-outline"
           >
             <ArrowUpRight size={20} />
             Transfer / Pay
@@ -294,8 +320,8 @@ export default function WalletPage() {
         </div>
       </div>
 
-      {/* TRANSACTION HISTORY SECTION */}
-      <div className="history-section-card">
+      {/* TRANSACTION HISTORY CARD */}
+      <div className="history-section-card glass-panel">
         <div className="history-header">
           <h3>
             <div className="icon-wrapper">
@@ -320,7 +346,7 @@ export default function WalletPage() {
           </div>
         ) : (
           <div className="table-responsive">
-            <table className="history-table">
+            <table className="history-table styled-table">
               <thead>
                 <tr>
                   <th>Date / Time</th>
@@ -332,7 +358,7 @@ export default function WalletPage() {
               </thead>
               <tbody>
                 {history.map((tx) => (
-                  <tr key={tx.id}>
+                  <tr key={tx.id} className="clickable-row">
                     <td className="date-cell">
                       {tx.date}
                     </td>
@@ -346,15 +372,15 @@ export default function WalletPage() {
                         <span>{tx.type}</span>
                       </div>
                     </td>
-                    <td className="notes-cell" title={tx.notes}>
+                    <td className="text-muted" title={tx.notes}>
                       {tx.notes || '-'}
                     </td>
-                    <td className={`amount-cell ${tx.type.includes('Payout') || tx.type.includes('Withdrawal') ? 'text-neg' : 'text-pos'}`}>
+                    <td className={`amount-cell ${tx.type.includes('Payout') || tx.type.includes('Withdrawal') ? 'text-main' : 'text-emerald'}`}>
                       {tx.type.includes('Payout') || tx.type.includes('Withdrawal') ? '-' : '+'}
                       {Number(tx.amount).toLocaleString()}
                     </td>
                     <td className="text-center">
-                      <span className={`status-badge ${getStatusClass(tx.status)}`}>
+                      <span className={getStatusClass(tx.status)}>
                         {tx.status?.toUpperCase()}
                       </span>
                     </td>
@@ -366,6 +392,7 @@ export default function WalletPage() {
         )}
       </div>
 
+      {/* MODALS */}
       {showPayout && (
         <DirectPayoutModal
           onClose={() => setShowPayout(false)}
