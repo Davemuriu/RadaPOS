@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from "react";
 import api from '../../services/api';
-import { Wallet, ArrowUpRight, ArrowDownLeft, History, Loader2, AlertCircle, X, User, Phone, DollarSign } from 'lucide-react';
+import {
+  Wallet,
+  ArrowUpRight,
+  ArrowDownLeft,
+  History,
+  Loader2,
+  AlertCircle,
+  X,
+  User,
+  Phone,
+  DollarSign,
+  CheckCircle
+} from 'lucide-react';
 import '../../styles/Vendor/VendorManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
 
@@ -43,51 +55,52 @@ const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 m-4 animate-in fade-in zoom-in duration-200">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-bold text-gray-800">Direct Payout</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
-            <X size={20} className="text-gray-500" />
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>
+            <ArrowUpRight className="icon-blue" size={20} />
+            Direct Payout
+          </h3>
+          <button onClick={onClose} className="close-btn">
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
-              <AlertCircle size={16} /> {error}
-            </div>
-          )}
-          {successMsg && (
-            <div className="mb-4 p-3 bg-green-50 text-green-600 text-sm rounded-lg flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full" /> {successMsg}
-            </div>
-          )}
+        <div className="modal-body">
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div className="alert alert-error">
+                <AlertCircle size={18} /> {error}
+              </div>
+            )}
+            {successMsg && (
+              <div className="alert alert-success">
+                <CheckCircle size={18} /> {successMsg}
+              </div>
+            )}
 
-          <div className="space-y-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <div className="form-group">
+              <label>Recipient Name</label>
+              <div className="input-wrapper">
+                <User className="input-icon" size={18} />
                 <input
                   type="text"
                   required
-                  className="w-full pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                  placeholder="John Doe"
+                  placeholder="e.g. John Doe"
                   value={formData.recipient_name}
                   onChange={e => setFormData({ ...formData, recipient_name: e.target.value })}
                 />
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <div className="form-group">
+              <label>M-Pesa Number</label>
+              <div className="input-wrapper">
+                <Phone className="input-icon" size={18} />
                 <input
                   type="text"
                   required
-                  className="w-full pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                   placeholder="07XX XXX XXX"
                   value={formData.phone_number}
                   onChange={e => setFormData({ ...formData, phone_number: e.target.value })}
@@ -95,42 +108,32 @@ const DirectPayoutModal = ({ onClose, onSuccess, maxAmount }) => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <div className="form-group">
+              <label>Amount</label>
+              <div className="input-wrapper">
+                <span className="currency-prefix">KES</span>
                 <input
                   type="number"
                   required
                   min="1"
-                  className="w-full pl-10 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                   placeholder="0.00"
                   value={formData.amount}
                   onChange={e => setFormData({ ...formData, amount: e.target.value })}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1 text-right">Max: {maxAmount?.toLocaleString()}</p>
+              <p className="helper-text text-right">Available: {maxAmount?.toLocaleString()}</p>
             </div>
-          </div>
 
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {loading && <Loader2 size={16} className="animate-spin" />}
-              Pay Now
-            </button>
-          </div>
-        </form>
+            <div className="modal-actions">
+              <button type="button" onClick={onClose} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button type="submit" disabled={loading} className="btn btn-primary">
+                {loading ? <Loader2 size={18} className="spin" /> : "Pay Now"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -163,56 +166,59 @@ const WithdrawalRequestModal = ({ onClose, onSuccess, maxAmount }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 m-4 animate-in fade-in zoom-in duration-200">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-bold text-gray-800">Request Withdrawal</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
-            <X size={20} className="text-gray-500" />
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>
+            <ArrowDownLeft className="icon-green" size={20} />
+            Withdraw Funds
+          </h3>
+          <button onClick={onClose} className="close-btn">
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
-              <AlertCircle size={16} /> {error}
+        <div className="modal-body">
+          <form onSubmit={handleSubmit}>
+            {error && (
+              <div className="alert alert-error">
+                <AlertCircle size={18} /> {error}
+              </div>
+            )}
+
+            <div className="form-group">
+              <label>Withdrawal Amount</label>
+              <div className="input-wrapper">
+                <span className="currency-prefix">KES</span>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  min="1"
+                  required
+                />
+              </div>
+              <p className="helper-text text-right">Available: {maxAmount?.toLocaleString()}</p>
             </div>
-          )}
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Amount (KES)</label>
-            <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-              placeholder="0.00"
-              min="1"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-2 text-right">
-              Available: KES {maxAmount?.toLocaleString()}
-            </p>
-          </div>
+            <div className="info-box">
+              <p>
+                <AlertCircle size={16} />
+                Requests are processed by Admin within 24 hours.
+              </p>
+            </div>
 
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {loading && <Loader2 size={16} className="animate-spin" />}
-              Submit Request
-            </button>
-          </div>
-        </form>
+            <div className="modal-actions">
+              <button type="button" onClick={onClose} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button type="submit" disabled={loading} className="btn btn-primary">
+                {loading ? <Loader2 size={18} className="spin" /> : "Submit Request"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -245,89 +251,110 @@ export default function WalletPage() {
     fetchData();
   }, []);
 
-  const getStatusColor = (status) => {
+  const getStatusClass = (status) => {
     switch (status?.toLowerCase()) {
-      case 'completed': return 'text-green-600 bg-green-50';
-      case 'paid': return 'text-blue-600 bg-blue-50';
-      case 'pending': return 'text-orange-600 bg-orange-50';
-      case 'rejected': return 'text-red-600 bg-red-50';
-      default: return 'text-gray-600 bg-gray-50';
+      case 'completed': return 'status-completed';
+      case 'paid': return 'status-paid';
+      case 'pending': return 'status-pending';
+      case 'rejected': return 'status-rejected';
+      default: return 'status-default';
     }
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="bg-white rounded-xl shadow-sm p-6 mb-8 border border-gray-100">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h2 className="text-gray-500 text-sm font-medium mb-1 flex items-center gap-2">
-              <Wallet size={16} /> Wallet Balance
-            </h2>
-            <div className="text-4xl font-bold text-gray-900">
-              {wallet.currency} {wallet.current_balance?.toLocaleString()}
-            </div>
+    <div className="wallet-page-container">
+      {/* HEADER SECTION */}
+      <div className="wallet-header-card">
+        <div className="wallet-balance-section">
+          <h2>
+            <Wallet size={18} className="icon-green" />
+            Available Balance
+          </h2>
+          <div className="balance-display">
+            <span className="currency">{wallet.currency}</span>
+            <span className="amount">{wallet.current_balance?.toLocaleString()}</span>
           </div>
+        </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowWithdrawal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-            >
-              <ArrowDownLeft size={18} />
-              Withdraw Funds
-            </button>
-            <button
-              onClick={() => setShowPayout(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <ArrowUpRight size={18} />
-              Pay Staff / Supplier
-            </button>
-          </div>
+        <div className="wallet-actions-group">
+          <button
+            onClick={() => setShowWithdrawal(true)}
+            className="btn btn-primary btn-withdraw"
+          >
+            <ArrowDownLeft size={20} />
+            Withdraw Funds
+          </button>
+          <button
+            onClick={() => setShowPayout(true)}
+            className="btn btn-outline btn-transfer"
+          >
+            <ArrowUpRight size={20} />
+            Transfer / Pay
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-800 flex items-center gap-2">
-            <History size={18} /> Transaction History
+      {/* TRANSACTION HISTORY SECTION */}
+      <div className="history-section-card">
+        <div className="history-header">
+          <h3>
+            <div className="icon-wrapper">
+              <History size={20} />
+            </div>
+            Transaction History
           </h3>
         </div>
 
         {isLoading ? (
-          <div className="p-8 text-center flex justify-center">
-            <Loader2 className="animate-spin text-gray-400" size={32} />
+          <div className="loading-state">
+            <Loader2 className="spin" size={32} />
+            <p>Loading transactions...</p>
           </div>
         ) : history.length === 0 ? (
-          <div className="p-12 text-center text-gray-400">
-            No transactions found yet.
+          <div className="empty-state">
+            <div className="empty-icon">
+              <History size={32} />
+            </div>
+            <p>No transactions found</p>
+            <small>Sales and payments will appear here.</small>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-600 border-b border-gray-100">
+          <div className="table-responsive">
+            <table className="history-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 font-medium">Date</th>
-                  <th className="px-6 py-3 font-medium">Type</th>
-                  <th className="px-6 py-3 font-medium">Details</th>
-                  <th className="px-6 py-3 font-medium text-right">Amount</th>
-                  <th className="px-6 py-3 font-medium text-center">Status</th>
+                  <th>Date / Time</th>
+                  <th>Transaction Type</th>
+                  <th>Details</th>
+                  <th className="text-right">Amount</th>
+                  <th className="text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody>
                 {history.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{tx.date}</td>
-                    <td className="px-6 py-4 font-medium text-gray-700">{tx.type}</td>
-                    <td className="px-6 py-4 text-gray-500 max-w-xs truncate" title={tx.notes}>
+                  <tr key={tx.id}>
+                    <td className="date-cell">
+                      {tx.date}
+                    </td>
+                    <td>
+                      <div className="type-cell">
+                        {tx.type.includes('Payout') || tx.type.includes('Withdrawal') ? (
+                          <span className="icon-circle icon-red"><ArrowUpRight size={14} /></span>
+                        ) : (
+                          <span className="icon-circle icon-green"><ArrowDownLeft size={14} /></span>
+                        )}
+                        <span>{tx.type}</span>
+                      </div>
+                    </td>
+                    <td className="notes-cell" title={tx.notes}>
                       {tx.notes || '-'}
                     </td>
-                    <td className={`px-6 py-4 text-right font-medium ${tx.type.includes('Payout') || tx.type.includes('Withdrawal') ? 'text-red-600' : 'text-green-600'}`}>
+                    <td className={`amount-cell ${tx.type.includes('Payout') || tx.type.includes('Withdrawal') ? 'text-neg' : 'text-pos'}`}>
                       {tx.type.includes('Payout') || tx.type.includes('Withdrawal') ? '-' : '+'}
-                      {wallet.currency} {tx.amount.toLocaleString()}
+                      {Number(tx.amount).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(tx.status)} border-transparent`}>
+                    <td className="text-center">
+                      <span className={`status-badge ${getStatusClass(tx.status)}`}>
                         {tx.status?.toUpperCase()}
                       </span>
                     </td>
