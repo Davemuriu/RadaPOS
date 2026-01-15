@@ -1,4 +1,3 @@
-import DirectPayoutModal from "../../components/vendor/DirectPayoutModal";
 import { useState, useEffect } from "react";
 import { getWallet } from "../../api";
 
