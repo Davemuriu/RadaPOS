@@ -7,12 +7,15 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     
+    # Global CORS (Good to keep as backup)
     CORS(app, resources={r"/*": {
         "origins": [
             "http://localhost:5173",
             "https://rada-pos.vercel.app",
             "https://rada-nn93ji0xv-davemurius-projects.vercel.app"
-        ]
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
     }}, supports_credentials=True)
 
     db.init_app(app)
@@ -37,7 +40,8 @@ def create_app(config_class=Config):
     app.register_blueprint(transaction_bp, url_prefix='/api/transactions')
     app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
     app.register_blueprint(staff_bp, url_prefix='/api/staff')
-    app.register_blueprint(mpesa_bp, url_prefix='/api/payments')
+    
+    app.register_blueprint(mpesa_bp, url_prefix='/api/mpesa')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(vendor_bp, url_prefix='/api/vendor')
