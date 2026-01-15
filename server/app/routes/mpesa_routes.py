@@ -1,6 +1,5 @@
-from flask import Blueprint, request, jsonify, send_file, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask_cors import cross_origin
+from flask import Blueprint, request, jsonify, send_file, current_app, make_response
+from flask_jwt_extended import verify_jwt_in_request
 from app.models.transaction import Sale, SaleItem, MpesaPayment
 from app.models.product import Product
 from app.models.user import User
@@ -34,10 +33,24 @@ def get_access_token():
         print(f"Token Error: {str(e)}")
         return None
 
-@mpesa_bp.route('/pay', methods=['POST'])
-@cross_origin() 
-@jwt_required()
+# --- STK PUSH WITH MANUAL CORS HANDLING ---
+@mpesa_bp.route('/pay', methods=['POST', 'OPTIONS'])
 def stk_push():
+    # 1. Handle Preflight (Browser Check)
+    if request.method == 'OPTIONS':
+        response = make_response(jsonify({'status': 'ok'}))
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+
+    # 2. Verify Security Manually (Only for POST)
+    try:
+        verify_jwt_in_request()
+    except Exception as e:
+        return jsonify({"msg": "Unauthorized", "error": str(e)}), 401
+
+    # 3. Process Payment
     data = request.get_json()
     try:
         amount = int(float(data.get('amount', 0))) 
@@ -71,7 +84,6 @@ def stk_push():
 
         headers = { "Authorization": f"Bearer {token}" }
 
-        # Log request for debugging (visible in Railway logs)
         print(f"Sending STK to {phone_number} for {amount} KES")
 
         req = requests.post('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', json=payload, headers=headers)
@@ -137,7 +149,6 @@ def callback():
                       if cashier: target_vendor_id = cashier.vendor_id if cashier.role != 'VENDOR' else cashier.id
 
                 if target_vendor_id:
-                      # Import here to avoid circular dependency
                       from app.services.wallet_service import WalletService
                       
                       net_amount = float(sale.total_amount) * 0.90
