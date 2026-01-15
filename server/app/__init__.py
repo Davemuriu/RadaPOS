@@ -1,18 +1,18 @@
 from flask import Flask
 from config import Config
-from app.extensions import db, bcrypt, jwt, cors, mail, migrate
+from app.extensions import db, bcrypt, jwt, mail, migrate
+from flask_cors import CORS
 
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
     db.init_app(app)
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
-    
-    cors.init_app(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
-    
     mail.init_app(app)
 
     from app.routes.auth_routes import auth_bp
@@ -31,7 +31,7 @@ def create_app(config_class=Config):
     app.register_blueprint(transaction_bp, url_prefix='/api/transactions')
     app.register_blueprint(analytics_bp, url_prefix='/api/analytics')
     app.register_blueprint(staff_bp, url_prefix='/api/staff')
-    app.register_blueprint(mpesa_bp, url_prefix='/api/mpesa')
+    app.register_blueprint(mpesa_bp, url_prefix='/api/payments')
     app.register_blueprint(settings_bp, url_prefix='/api/settings')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(vendor_bp, url_prefix='/api/vendor')
