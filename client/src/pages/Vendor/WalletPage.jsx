@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { getWallet } from "../../api";
+import api from '../../services/api';
 
 export default function WalletPage() {
   const [wallet, setWallet] = useState(null);
   const [showPayout, setShowPayout] = useState(false);
 
   const refreshWallet = async () => {
-    const res = await getWallet();
+    const res = await api.get('/vendor/wallet');
     setWallet(res.data);
   };
 
