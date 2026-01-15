@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_cors import cross_origin
 from app.models.transaction import Sale, SaleItem, MpesaPayment
 from app.models.product import Product
 from app.models.user import User
@@ -33,12 +34,10 @@ def get_access_token():
         print(f"Token Error: {str(e)}")
         return None
 
-@mpesa_bp.route('/pay', methods=['POST', 'OPTIONS'])
+@mpesa_bp.route('/pay', methods=['POST'])
+@cross_origin() 
 @jwt_required()
 def stk_push():
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'ok'}), 200
-        
     data = request.get_json()
     try:
         amount = int(float(data.get('amount', 0))) 
@@ -72,11 +71,13 @@ def stk_push():
 
         headers = { "Authorization": f"Bearer {token}" }
 
+        # Log request for debugging (visible in Railway logs)
+        print(f"Sending STK to {phone_number} for {amount} KES")
+
         req = requests.post('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', json=payload, headers=headers)
         res_data = req.json()
         
         if 'ResponseCode' in res_data and res_data['ResponseCode'] == '0':
-            # Create payment record
             new_payment = MpesaPayment(
                 sale_id=sale_id, 
                 checkout_request_id=res_data['CheckoutRequestID'],
@@ -87,12 +88,14 @@ def stk_push():
             )
             db.session.add(new_payment)
             db.session.commit()
+            print(f"STK Success: {res_data['CheckoutRequestID']}")
             return jsonify({"msg": "Sent", "checkout_request_id": res_data['CheckoutRequestID'], "sale_id": sale_id}), 200
         else:
+            print(f"STK Failed: {res_data}")
             return jsonify({"msg": "STK Push Failed", "error": res_data}), 400
 
     except Exception as e:
-        print(f"STK Error: {e}")
+        print(f"STK System Error: {e}")
         return jsonify({"msg": "Request failed", "error": str(e)}), 500
 
 @mpesa_bp.route('/callback', methods=['POST'])
@@ -124,7 +127,6 @@ def callback():
                 sale = payment.parent_sale
                 sale.status = 'COMPLETED'
                 
-                # Logic to find vendor
                 target_vendor_id = None
                 if sale.items:
                       prod = Product.query.get(sale.items[0].product_id)
@@ -135,7 +137,7 @@ def callback():
                       if cashier: target_vendor_id = cashier.vendor_id if cashier.role != 'VENDOR' else cashier.id
 
                 if target_vendor_id:
-                      # Import Service inside function to prevent Circular Import Crash
+                      # Import here to avoid circular dependency
                       from app.services.wallet_service import WalletService
                       
                       net_amount = float(sale.total_amount) * 0.90
