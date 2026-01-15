@@ -56,7 +56,6 @@ def send_credentials_email(user, password, role_name):
         print(f"Failed to send email to {user.email}: {e}")
         return False
 
-# STATS & GRAPHS
 @admin_bp.route('/dashboard/graph', methods=['GET'])
 @jwt_required()
 @admin_required
@@ -118,7 +117,6 @@ def get_admin_stats():
         "active_events": active_events_data
     }), 200
 
-# GLOBAL WALLET ROUTES
 @admin_bp.route('/wallet/stats', methods=['GET'])
 @jwt_required()
 @admin_required
@@ -176,7 +174,6 @@ def approve_withdrawal(id):
         withdrawal.status = 'completed'
         withdrawal.processed_at = datetime.utcnow()
         
-        # Notify Vendor
         notif = Notification(
             user_id=withdrawal.vendor_id, 
             message=f"Your withdrawal of KES {withdrawal.amount:,.2f} has been Approved and Processed.", 
@@ -207,16 +204,13 @@ def reject_withdrawal(id):
         if withdrawal.status != 'pending':
             return jsonify({"msg": "Only pending withdrawals can be rejected"}), 400
 
-        # Refund Logic
         vendor_wallet = Wallet.query.filter_by(vendor_id=withdrawal.vendor_id).first()
         if vendor_wallet:
             vendor_wallet.current_balance += withdrawal.amount
         
         withdrawal.status = 'rejected'
-        # LOGIC FIX: Add rejection note
         withdrawal.notes = (withdrawal.notes or "") + " [Rejected by Admin]"
         
-        # Notify Vendor
         notif = Notification(
             user_id=withdrawal.vendor_id, 
             message=f"Your withdrawal of KES {withdrawal.amount:,.2f} was Rejected. Funds returned to wallet.", 
@@ -237,7 +231,6 @@ def reject_withdrawal(id):
         db.session.rollback()
         return jsonify({"msg": "Rejection failed", "error": str(e)}), 500
 
-# USER & EVENT MANAGEMENT
 @admin_bp.route('/events', methods=['GET', 'POST'])
 @jwt_required()
 @admin_required
@@ -340,10 +333,20 @@ def manage_single_vendor(id):
         return jsonify({"msg": "Not a vendor"}), 400
 
     if request.method == 'DELETE':
-        db.session.delete(vendor)
-        db.session.commit()
-        log_admin_action(get_jwt_identity(), "Deleted Vendor", f"ID: {id}")
-        return jsonify({"msg": "Vendor deleted"}), 200
+        try:
+            Wallet.query.filter_by(vendor_id=id).delete()
+            Notification.query.filter_by(user_id=id).delete()
+            try:
+                User.query.filter_by(vendor_id=id).delete()
+            except:
+                pass
+            db.session.delete(vendor)
+            db.session.commit()
+            log_admin_action(get_jwt_identity(), "Deleted Vendor", f"ID: {id}")
+            return jsonify({"msg": "Vendor deleted"}), 200
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"msg": "Failed to delete vendor", "error": str(e)}), 500
 
     if request.method == 'PUT':
         try:
