@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import '../../styles/Admin/AdminManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
+import api from '../../services/api';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -12,7 +13,6 @@ export default function AdminUsers() {
   const [formData, setFormData] = useState({ name: '', email: '', role: 'ADMIN' });
   const [loading, setLoading] = useState(true);
 
-  // THEME LOGIC
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
   useEffect(() => {
@@ -24,8 +24,6 @@ export default function AdminUsers() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  const token = localStorage.getItem('access_token');
-
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -33,11 +31,8 @@ export default function AdminUsers() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5555/api/admin/users", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      const data = await res.json();
-      setUsers(data || []);
+      const res = await api.get("/admin/users");
+      setUsers(res.data || []);
     } catch (err) {
       console.error("Fetch failed", err);
     } finally {
@@ -48,42 +43,24 @@ export default function AdminUsers() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("http://localhost:5555/api/admin/users", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(formData)
-      });
-      if (res.ok) {
-        setIsModalOpen(false);
-        setFormData({ name: '', email: '', role: 'ADMIN' });
-        fetchUsers();
-        alert("Invitation Sent Successfully");
-      } else {
-        alert("Failed to create user");
-      }
+      await api.post("/admin/users", formData);
+      setIsModalOpen(false);
+      setFormData({ name: '', email: '', role: 'ADMIN' });
+      fetchUsers();
+      alert("Invitation Sent Successfully");
     } catch (err) {
-      alert("Network error");
+      alert("Failed to create user");
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Permanently delete this admin user? This cannot be undone.")) return;
     try {
-      const res = await fetch(`http://localhost:5555/api/admin/users/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchUsers();
-      } else {
-        const err = await res.json();
-        alert(err.msg || "Failed to delete user");
-      }
+      await api.delete(`/admin/users/${id}`);
+      fetchUsers();
     } catch (err) {
-      alert("Network error");
+      const msg = err.response?.data?.msg || "Failed to delete user";
+      alert(msg);
     }
   };
 
@@ -94,35 +71,21 @@ export default function AdminUsers() {
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
 
     try {
-      const res = await fetch(`http://localhost:5555/api/admin/users/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (res.ok) {
-        fetchUsers();
-      } else {
-        alert("Failed to update status");
-      }
+      await api.put(`/admin/users/${id}`, { status: newStatus });
+      fetchUsers();
     } catch (err) {
-      alert("Network error");
+      alert("Failed to update status");
     }
   };
 
   return (
     <div className="management-container">
-      {/* Header */}
       <div className="management-header">
         <div>
           <h1 className="page-title">Admin Management</h1>
           <p className="page-subtitle">Manage system access and roles</p>
         </div>
 
-        {/* Actions: Theme Toggle + Invite Button */}
         <div className="header-actions">
           <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -133,10 +96,7 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* Main Content (Glass Panel) */}
       <div className="glass-panel main-panel">
-
-        {/* Table */}
         <div className="table-responsive">
           <table className="styled-table">
             <thead>
@@ -204,7 +164,6 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
           <div className="modal-glass">

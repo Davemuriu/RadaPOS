@@ -5,6 +5,7 @@ import {
   Sun, Moon
 } from 'lucide-react';
 import '../../styles/Admin/AdminDashboard.css';
+import api from '../../services/api';
 
 export default function AdminDashboard() {
   const [graphData, setGraphData] = useState([]);
@@ -14,8 +15,6 @@ export default function AdminDashboard() {
   const [isSyncing, setIsSyncing] = useState(false);
 
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
-
-  const token = localStorage.getItem('access_token');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -32,12 +31,12 @@ export default function AdminDashboard() {
 
     try {
       const [graphRes, statsRes] = await Promise.all([
-        fetch('http://localhost:5555/api/admin/dashboard/graph', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('http://localhost:5555/api/admin/stats', { headers: { 'Authorization': `Bearer ${token}` } })
+        api.get('/admin/dashboard/graph'),
+        api.get('/admin/stats')
       ]);
 
-      const graph = await graphRes.json();
-      const statistics = await statsRes.json();
+      const graph = graphRes.data;
+      const statistics = statsRes.data;
 
       setGraphData(Array.isArray(graph) ? graph : []);
       setStats(statistics);
@@ -48,7 +47,7 @@ export default function AdminDashboard() {
       setLoading(false);
       setIsSyncing(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
@@ -65,12 +64,10 @@ export default function AdminDashboard() {
         </div>
 
         <div className="dashboard-actions">
-          {/* Theme Toggle */}
           <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
-          {/* Refresh Status */}
           <div className="refresh-pill">
             <RefreshCcw size={14} className={isSyncing ? "animate-spin" : ""} />
             <span>{lastUpdated.toLocaleTimeString()}</span>
@@ -78,7 +75,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="dashboard-grid">
         <div className="stat-card">
           <div className="stat-content">
@@ -112,7 +108,6 @@ export default function AdminDashboard() {
       </div>
 
       <div className="analytics-layout">
-        {/* Chart Section */}
         <div className="glass-panel chart-panel">
           <div className="panel-header">
             <div className="header-icon"><Activity size={18} /></div>
@@ -173,7 +168,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Top Vendors */}
         <div className="glass-panel vendors-panel">
           <div className="panel-header">
             <Award size={18} className="text-yellow" />
@@ -203,7 +197,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Recent Activity */}
       <div className="glass-panel activity-panel">
         <div className="panel-header">
           <Clock size={18} className="text-green" />

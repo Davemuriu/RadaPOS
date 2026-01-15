@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, X, Calendar, MapPin, Loader2, Search, Edit2,
+  Plus, X, MapPin, Loader2, Search, Edit2,
   Trash2, ShieldAlert, CheckCircle, ChevronDown, Filter,
   Sun, Moon
 } from 'lucide-react';
 import '../../styles/Admin/AdminManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
+import api from '../../services/api';
 
 export default function AdminEvents() {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  //  THEME LOGIC
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
   useEffect(() => {
@@ -25,26 +25,21 @@ export default function AdminEvents() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  // Filter States
   const [dateFilter, setDateFilter] = useState('All Period');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Modal & Edit State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentId, setCurrentId] = useState(null);
 
-  // Form Data
   const [formData, setFormData] = useState({
     name: '',
     location: '',
     starts_at: '',
     ends_at: ''
   });
-
-  const token = localStorage.getItem('access_token');
 
   useEffect(() => {
     fetchEvents();
@@ -53,15 +48,13 @@ export default function AdminEvents() {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      if (!token) { navigate('/admin/login'); return; }
-      const response = await fetch(`http://localhost:5555/api/admin/events`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.status === 401) { navigate('/admin/login'); return; }
-      const data = await response.json();
-      setEvents(data || []);
+      const response = await api.get('/admin/events');
+      setEvents(response.data || []);
     } catch (err) {
       console.error("Fetch failed", err);
+      if (err.response && err.response.status === 401) {
+        navigate('/admin/login');
+      }
     } finally {
       setLoading(false);
     }
@@ -72,15 +65,8 @@ export default function AdminEvents() {
     if (!window.confirm(`Are you sure you want to ${action} this event?`)) return;
 
     try {
-      const res = await fetch(`http://localhost:5555/api/admin/events/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ is_active: !currentStatus })
-      });
-      if (res.ok) fetchEvents();
+      await api.put(`/admin/events/${id}`, { is_active: !currentStatus });
+      fetchEvents();
     } catch (err) {
       alert("Status update failed");
     }
@@ -89,11 +75,8 @@ export default function AdminEvents() {
   const handleDelete = async (id) => {
     if (!window.confirm("Permanently delete this event? This cannot be undone.")) return;
     try {
-      const res = await fetch(`http://localhost:5555/api/admin/events/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) fetchEvents();
+      await api.delete(`/admin/events/${id}`);
+      fetchEvents();
     } catch (err) {
       alert("Delete failed");
     }
@@ -128,26 +111,15 @@ export default function AdminEvents() {
         starts_at: new Date(formData.starts_at).toISOString(),
         ends_at: new Date(formData.ends_at).toISOString()
       };
-      const url = editMode
-        ? `http://localhost:5555/api/admin/events/${currentId}`
-        : `http://localhost:5555/api/admin/events`;
-      const method = editMode ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        setIsModalOpen(false);
-        fetchEvents();
+      if (editMode) {
+        await api.put(`/admin/events/${currentId}`, payload);
       } else {
-        alert("Error processing event");
+        await api.post('/admin/events', payload);
       }
+
+      setIsModalOpen(false);
+      fetchEvents();
     } catch (err) {
       alert("Error processing event");
     } finally {
@@ -161,14 +133,12 @@ export default function AdminEvents() {
 
   return (
     <div className="management-container">
-      {/* Header */}
       <div className="management-header">
         <div>
           <h1 className="page-title">Event Registry</h1>
           <p className="page-subtitle">Configure and monitor platform-wide festivals</p>
         </div>
 
-        {/* Actions: Theme Toggle + Create Button */}
         <div className="header-actions">
           <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -179,7 +149,6 @@ export default function AdminEvents() {
         </div>
       </div>
 
-      {/* Stats Overview */}
       <div className="dashboard-grid stats-overview">
         <div className="stat-card">
           <span className="stat-label">Total Events</span>
@@ -195,10 +164,8 @@ export default function AdminEvents() {
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="glass-panel main-panel">
 
-        {/* Filters & Search */}
         <div className="action-bar">
           <div className="search-wrapper">
             <Search size={18} className="search-icon" />
@@ -237,7 +204,6 @@ export default function AdminEvents() {
           </div>
         </div>
 
-        {/* Table */}
         <div className="table-responsive">
           <table className="styled-table">
             <thead>
@@ -308,7 +274,6 @@ export default function AdminEvents() {
         </div>
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
           <div className="modal-glass">

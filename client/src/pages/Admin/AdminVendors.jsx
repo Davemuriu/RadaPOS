@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, X, Search, Trash2, Edit2, Mail, Key,
-  ShieldAlert, CheckCircle, ChevronDown, Filter, Store,
-  Sun, Moon
+  ShieldAlert, CheckCircle, Store, Sun, Moon
 } from 'lucide-react';
 import '../../styles/Admin/AdminManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
+import api from '../../services/api';
 
 export default function AdminVendors() {
   const navigate = useNavigate();
@@ -16,7 +16,6 @@ export default function AdminVendors() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // THEME LOGIC
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
   useEffect(() => {
@@ -28,7 +27,6 @@ export default function AdminVendors() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  // Edit Mode State
   const [editMode, setEditMode] = useState(false);
   const [currentId, setCurrentId] = useState(null);
 
@@ -43,7 +41,6 @@ export default function AdminVendors() {
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const token = localStorage.getItem('access_token');
 
   useEffect(() => {
     fetchData();
@@ -52,12 +49,12 @@ export default function AdminVendors() {
   const fetchData = async () => {
     try {
       const [vendorRes, eventRes] = await Promise.all([
-        fetch('http://localhost:5555/api/admin/vendors', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('http://localhost:5555/api/admin/events', { headers: { 'Authorization': `Bearer ${token}` } })
+        api.get('/admin/vendors'),
+        api.get('/admin/events')
       ]);
 
-      const vendorData = await vendorRes.json();
-      const eventData = await eventRes.json();
+      const vendorData = vendorRes.data;
+      const eventData = eventRes.data;
 
       setVendors(vendorData.vendors || []);
       setEvents(eventData || []);
@@ -92,34 +89,21 @@ export default function AdminVendors() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const url = editMode
-      ? `http://localhost:5555/api/admin/vendors/${currentId}`
-      : `http://localhost:5555/api/admin/vendors`;
-
-    const method = editMode ? 'PUT' : 'POST';
-
     try {
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setIsModalOpen(false);
-        fetchData();
-        setFormData(initialFormState);
-        alert(editMode ? "Vendor updated successfully." : "Vendor registered. Credentials have been emailed.");
+      let res;
+      if (editMode) {
+        res = await api.put(`/admin/vendors/${currentId}`, formData);
       } else {
-        alert(data.msg || "Operation failed");
+        res = await api.post('/admin/vendors', formData);
       }
+
+      setIsModalOpen(false);
+      fetchData();
+      setFormData(initialFormState);
+      alert(editMode ? "Vendor updated successfully." : "Vendor registered. Credentials have been emailed.");
     } catch (err) {
-      alert("Network error occurred");
+      const msg = err.response?.data?.msg || "Operation failed";
+      alert(msg);
     }
   };
 
@@ -127,16 +111,11 @@ export default function AdminVendors() {
     if (!window.confirm(`Reset password for ${email}? A new temporary password will be emailed.`)) return;
 
     try {
-      const res = await fetch(`http://localhost:5555/api/admin/vendors/${id}/reset-password`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      const data = await res.json();
-      if (res.ok) alert(data.msg);
-      else alert(data.msg || "Reset failed");
+      const res = await api.post(`/admin/vendors/${id}/reset-password`);
+      alert(res.data.msg);
     } catch (err) {
-      alert("Network error occurred");
+      const msg = err.response?.data?.msg || "Reset failed";
+      alert(msg);
     }
   };
 
@@ -145,12 +124,8 @@ export default function AdminVendors() {
     if (!window.confirm(`Are you sure you want to ${newStatus === 'active' ? 'activate' : 'suspend'} this vendor?`)) return;
 
     try {
-      const res = await fetch(`http://localhost:5555/api/admin/vendors/${id}/status`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
-      if (res.ok) fetchData();
+      await api.put(`/admin/vendors/${id}/status`, { status: newStatus });
+      fetchData();
     } catch (err) {
       console.error(err);
     }
@@ -160,16 +135,9 @@ export default function AdminVendors() {
     if (!window.confirm("Permanently delete this vendor? This cannot be undone.")) return;
 
     try {
-      const res = await fetch(`http://localhost:5555/api/admin/vendors/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchData();
-        alert("Vendor deleted successfully.");
-      } else {
-        alert("Failed to delete vendor");
-      }
+      await api.delete(`/admin/vendors/${id}`);
+      fetchData();
+      alert("Vendor deleted successfully.");
     } catch (err) {
       alert("Delete failed");
     }
@@ -182,14 +150,12 @@ export default function AdminVendors() {
 
   return (
     <div className="management-container">
-      {/* Header */}
       <div className="management-header">
         <div>
           <h1 className="page-title">Vendor Management</h1>
           <p className="page-subtitle">Manage business partners and legal compliance</p>
         </div>
 
-        {/* Actions: Theme Toggle + Create Button */}
         <div className="header-actions">
           <button className="icon-btn theme-toggle" onClick={toggleTheme} title="Toggle Theme">
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -200,10 +166,7 @@ export default function AdminVendors() {
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="glass-panel main-panel">
-
-        {/* Search & Filter */}
         <div className="action-bar">
           <div className="search-wrapper">
             <Search size={18} className="search-icon" />
@@ -223,7 +186,6 @@ export default function AdminVendors() {
           </div>
         </div>
 
-        {/* Table */}
         <div className="table-responsive">
           <table className="styled-table">
             <thead>
@@ -297,7 +259,6 @@ export default function AdminVendors() {
         </div>
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
           <div className="modal-glass">
@@ -307,7 +268,6 @@ export default function AdminVendors() {
             </div>
 
             <form onSubmit={handleSubmit} className="modal-form" autoComplete="off">
-              {/* Fake hidden inputs to trick Chrome autofill */}
               <input type="text" style={{ display: 'none' }} />
               <input type="password" style={{ display: 'none' }} />
 
