@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -15,13 +15,15 @@ import {
   History,
   UserCircle,
   Zap,
-  CreditCard
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import '../styles/Components/Sidebar.css';
 
 const Sidebar = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const userRole = (user?.role || 'GUEST').toUpperCase();
 
@@ -63,24 +65,35 @@ const Sidebar = ({ user, onLogout }) => {
   const menuItems = getMenuItems();
 
   return (
-    <aside className="sidebar glass-panel">
+    <aside className={`sidebar glass-panel ${isCollapsed ? 'collapsed' : ''}`}>
+      {/* Toggle Button */}
+      <button
+        className="collapse-btn"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+      >
+        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
+
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <div className="logo-icon-bg">
             <Zap size={22} fill="currentColor" />
           </div>
-          <div className="logo-text-wrapper">
-            <span className="logo-main">RadaPOS</span>
-            <span className="logo-sub">Enterprise</span>
-          </div>
+          {!isCollapsed && (
+            <div className="logo-text-wrapper fade-in">
+              <span className="logo-main">RadaPOS</span>
+              <span className="logo-sub">Enterprise</span>
+            </div>
+          )}
         </div>
 
         {/* User Access Badge */}
         <div className={`user-badge-container ${userRole.toLowerCase()}`}>
-          <p className="badge-label">ACCESS LEVEL</p>
+          {!isCollapsed && <p className="badge-label fade-in">ACCESS LEVEL</p>}
           <div className="user-badge">
             <ShieldCheck size={14} />
-            <span>{userRole}</span>
+            {!isCollapsed && <span className="fade-in">{userRole}</span>}
           </div>
         </div>
       </div>
@@ -93,9 +106,10 @@ const Sidebar = ({ user, onLogout }) => {
               key={item.name}
               onClick={() => navigate(item.path)}
               className={`nav-item ${isActive ? 'active' : ''}`}
+              title={isCollapsed ? item.name : ''}
             >
               <span className="nav-icon">{item.icon}</span>
-              <span className="nav-text">{item.name}</span>
+              {!isCollapsed && <span className="nav-text fade-in">{item.name}</span>}
               {isActive && <div className="active-indicator" />}
             </button>
           );
@@ -104,9 +118,9 @@ const Sidebar = ({ user, onLogout }) => {
 
       {/* Footer / Logout */}
       <div className="sidebar-footer">
-        <button onClick={onLogout} className="logout-btn">
+        <button onClick={onLogout} className="logout-btn" title={isCollapsed ? "Logout" : ""}>
           <LogOut size={20} />
-          <span>Logout Session</span>
+          {!isCollapsed && <span className="fade-in">Logout Session</span>}
         </button>
       </div>
     </aside>
