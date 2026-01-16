@@ -85,7 +85,7 @@ const LoginPage = () => {
                     navigate('/vendor/dashboard');
                     break;
                 case 'cashier':
-                    navigate('/pos');
+                    navigate('/cashier/pos');
                     break;
                 default:
                     navigate('/');
