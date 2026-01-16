@@ -3,7 +3,8 @@ import api from '../../services/api';
 import {
     Search, ShoppingBag, Plus, Minus, Trash2, Banknote, X,
     CheckCircle, Loader2, Smartphone, Receipt, CreditCard,
-    Sun, Moon, LayoutGrid, Tag, Percent, Split
+    Sun, Moon, LayoutGrid, Tag, Percent, Split,
+    Coffee, Utensils, Archive, Monitor
 } from 'lucide-react';
 import '../../styles/Cashier/POSPage.css';
 import '../../styles/Admin/AdminManagement.css';
@@ -59,6 +60,24 @@ const POSPage = () => {
             const res = await api.get('/transactions/coupons');
             setAvailableCoupons(res.data);
         } catch (error) { console.error("Error fetching coupons:", error); }
+    };
+
+    const getCategoryIcon = (category) => {
+        const cat = (category || '').toLowerCase();
+        if (cat.includes('beverage') || cat.includes('coffee') || cat.includes('drink')) return <Coffee size={24} />;
+        if (cat.includes('food') || cat.includes('meal')) return <Utensils size={24} />;
+        if (cat.includes('snack')) return <ShoppingBag size={24} />;
+        if (cat.includes('electronic')) return <Smartphone size={24} />;
+        if (cat.includes('tech')) return <Monitor size={24} />;
+        return <Archive size={24} />;
+    };
+
+    const getCategoryColor = (category) => {
+        const cat = (category || '').toLowerCase();
+        if (cat.includes('beverage')) return '#f59e0b';
+        if (cat.includes('food')) return '#ef4444';
+        if (cat.includes('electronic')) return '#3b82f6';
+        return '#10b981';
     };
 
     const addToCart = (product) => {
@@ -294,24 +313,38 @@ const POSPage = () => {
                     <div className="loading-state"><Loader2 className="animate-spin" size={40} /></div>
                 ) : (
                     <div className="products-grid-container">
-                        {filteredProducts.map(product => (
-                            <div
-                                key={product.id}
-                                className={`pos-product-card ${product.stock_quantity <= 0 ? 'disabled' : ''}`}
-                                onClick={() => addToCart(product)}
-                            >
-                                <div className="card-top">
-                                    <h3 className="prod-name">{product.name}</h3>
-                                    <span className={`stock-pill ${product.stock_quantity < 5 ? 'low' : 'ok'}`}>
-                                        {product.stock_quantity} left
-                                    </span>
+                        {filteredProducts.map(product => {
+                            const cardColor = getCategoryColor(product.category);
+                            return (
+                                <div
+                                    key={product.id}
+                                    className={`pos-product-card ${product.stock_quantity <= 0 ? 'disabled' : ''}`}
+                                    onClick={() => addToCart(product)}
+                                >
+                                    <div className="card-top">
+                                        {/* Dynamic Icon */}
+                                        <div
+                                            style={{
+                                                width: '48px', height: '48px', borderRadius: '12px',
+                                                background: cardColor, color: 'white',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                marginBottom: '10px'
+                                            }}
+                                        >
+                                            {getCategoryIcon(product.category)}
+                                        </div>
+                                        <h3 className="prod-name">{product.name}</h3>
+                                        <span className={`stock-pill ${product.stock_quantity < 5 ? 'low' : 'ok'}`}>
+                                            {product.stock_quantity} left
+                                        </span>
+                                    </div>
+                                    <div className="card-bottom">
+                                        <div className="price-tag">KES {product.price.toLocaleString()}</div>
+                                        <div className="add-icon"><Plus size={16} /></div>
+                                    </div>
                                 </div>
-                                <div className="card-bottom">
-                                    <div className="price-tag">KES {product.price.toLocaleString()}</div>
-                                    <div className="add-icon"><Plus size={16} /></div>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

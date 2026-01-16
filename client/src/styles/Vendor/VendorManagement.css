@@ -457,6 +457,28 @@
     background: rgba(239, 68, 68, 0.1);
 }
 
+.btn-secondary-outline {
+    width: 100%;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    background: transparent;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: 0.2s;
+    margin-top: auto;
+}
+
+.btn-secondary-outline:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-muted);
+}
+
 .primary-gradient {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
     border: none !important;

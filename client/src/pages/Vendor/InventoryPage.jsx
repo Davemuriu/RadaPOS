@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import {
-    Plus, Trash2, Search, X, Package, Loader2, Edit3, Tag,
-    Sun, Moon, Filter, AlertCircle
+    Plus, Trash2, Search, X, Package, Loader2, Edit3,
+    Sun, Moon, Layers, AlertCircle, CheckCircle,
+    Coffee, Utensils, Smartphone, Archive, Monitor, ShoppingBag
 } from 'lucide-react';
 import '../../styles/Vendor/VendorManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
@@ -59,6 +60,19 @@ const InventoryPage = () => {
         );
         setFilteredProducts(filtered);
     }, [searchTerm, products]);
+
+    const getCategoryIcon = (category) => {
+        const cat = (category || '').toLowerCase();
+
+        if (cat.includes('beverage') || cat.includes('coffee') || cat.includes('drink')) return <Coffee size={20} />;
+        if (cat.includes('food') || cat.includes('meal') || cat.includes('lunch')) return <Utensils size={20} />;
+        if (cat.includes('snack') || cat.includes('bite')) return <ShoppingBag size={20} />;
+        if (cat.includes('electronic') || cat.includes('phone')) return <Smartphone size={20} />;
+        if (cat.includes('computer') || cat.includes('tech')) return <Monitor size={20} />;
+        if (cat.includes('other')) return <Archive size={20} />;
+
+        return <Package size={20} />;
+    };
 
     const handleOpenModal = (product = null) => {
         if (product) {
@@ -138,7 +152,7 @@ const InventoryPage = () => {
                     </div>
                     <div className="filter-wrapper">
                         <div className="filter-label">
-                            <Package size={14} /> <span>{products.length} Items</span>
+                            <Layers size={14} /> <span>{products.length} Items</span>
                         </div>
                     </div>
                 </div>
@@ -163,9 +177,21 @@ const InventoryPage = () => {
                                     <tr key={p.id}>
                                         <td>
                                             <div className="flex items-center gap-3">
-                                                <div className="event-initial bg-primary/10 text-primary">
-                                                    <Tag size={16} />
+
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    width: '40px',
+                                                    height: '40px',
+                                                    borderRadius: '10px',
+                                                    backgroundColor: 'var(--primary)',
+                                                    color: '#ffffff',
+                                                    flexShrink: 0
+                                                }}>
+                                                    {getCategoryIcon(p.category)}
                                                 </div>
+
                                                 <div className="flex-col">
                                                     <span className="font-bold text-main">{p.name}</span>
                                                     <span className="text-xs text-muted truncate max-w-xs">{p.description}</span>
@@ -184,8 +210,8 @@ const InventoryPage = () => {
                                                     <AlertCircle size={12} /> {p.stock_quantity} Low Stock
                                                 </span>
                                             ) : (
-                                                <span className="status-badge completed">
-                                                    {p.stock_quantity} In Stock
+                                                <span className="status-badge completed flex items-center gap-1 w-fit">
+                                                    <CheckCircle size={12} /> {p.stock_quantity} In Stock
                                                 </span>
                                             )}
                                         </td>

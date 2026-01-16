@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import {
     UserPlus, Trash2, X, User, Mail, Phone, CreditCard,
-    Sun, Moon, Search, ShieldCheck, Loader2
+    Sun, Moon, Search, ShieldCheck, Loader2, Key
 } from 'lucide-react';
 import '../../styles/Vendor/VendorManagement.css';
 import '../../styles/Admin/AdminDashboard.css';
@@ -57,8 +57,20 @@ const StaffPage = () => {
         setFilteredStaff(filtered);
     }, [searchTerm, staffMembers]);
 
+    const handleResetPassword = async (email) => {
+        if (!window.confirm(`Send password reset link to ${email}?`)) return;
+
+        try {
+            await api.post('/auth/forgot-password', { email });
+            alert(`Success! A password reset link has been sent to ${email}.`);
+        } catch (error) {
+            console.error("Reset password error:", error);
+            alert(error.response?.data?.msg || "Failed to send reset link. Please try again.");
+        }
+    };
+
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to remove this staff member?")) return;
+        if (!window.confirm("Are you sure you want to remove this staff member? This cannot be undone.")) return;
         try {
             await api.delete(`/staff/${id}`);
             const updated = staffMembers.filter(s => s.id !== id);
@@ -149,12 +161,22 @@ const StaffPage = () => {
                                 </div>
                             </div>
 
-                            <button
-                                className="btn-danger-outline full-width"
-                                onClick={() => handleDelete(staff.id)}
-                            >
-                                <Trash2 size={16} /> Remove Access
-                            </button>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '16px' }}>
+                                <button
+                                    className="btn-secondary-outline"
+                                    onClick={() => handleResetPassword(staff.email)}
+                                    title="Send Password Reset Link"
+                                >
+                                    <Key size={16} /> Reset Pass
+                                </button>
+                                <button
+                                    className="btn-danger-outline"
+                                    onClick={() => handleDelete(staff.id)}
+                                    title="Remove User"
+                                >
+                                    <Trash2 size={16} /> Remove
+                                </button>
+                            </div>
                         </div>
                     ))}
 
