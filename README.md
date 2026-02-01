@@ -8,6 +8,17 @@ The platform is engineered to support complex transactional workflows including 
 allowing multiple vendors to operate independently within a single system instance.
 🔗 https://rada-pos.vercel.app/
 
+The Problem: Solves transactional fragmentation for retail businesses and high-volume events by providing real-time financial analytics and automated stock validation.
+Key Engineering: Built complex logic for split payments (Cash + M-Pesa), real-time M-Pesa STK Push integration via Safaricom Daraja API, and strict multi-tenant data isolation.
+   
+Team Collaboration: 
+Developed as a capstone project alongside:
+
+ Rebecca (Internal Auditor & Financial Advisor) - She built the SaaS Admin Platform,designing the oversight logic that allows the Super Admin to manage subscriptions and users, ensuring the platform itself is viable as a business.
+ Mohammed (Logistics) - He took charge of The Vendor Experience. Built the inventory management and the vendor portal.
+ Wayne (BSc Electrical & Electronics Engineering)- He focused on The Cashier Experience. He applied that engineering discipline to ensure the checkout process is fast, responsive, and reliable.
+ David (Hub Manager&Accountant) - Focused on the Core Architecture, Authentication, and Payments. Handled the M-Pesa integrations and the overall styling to ensure the math in the backend matches the beauty of the frontend.
+
 Key Features:
 1. Core Point of Sale & Transaction Processing
    The central hub of the application, designed for speed and transactional integrity.
