@@ -101,26 +101,30 @@ A polished interface designed for modern retail environments.
 
 Installation and Setup
 1. Clone the Repository
-        git clone https://github.com/Davemuriu/RadaPOS.git
-        cd RadaPOS
+      
+         git clone https://github.com/Davemuriu/RadaPOS.git
+         cd RadaPOS
 
-2. Backend Setup
-        cd server
-        python -m venv venv
-        source venv/bin/activate # or venv\Scripts\activate on Windows
-        pip install -r requirements.txt
+3. Backend Setup
+   
+         cd server
+         python -m venv venv
+         source venv/bin/activate # or venv\Scripts\activate on Windows
+         pip install -r requirements.txt
 
 Environment Configuration
+
         Create a .env file in the /server directory and configure your database URI, JWT
         secret key, and API keys for M-Pesa and SendGrid.
 
 Database Initialization
+        
         flask db upgrade
 
 5. Frontend Setup
+   
         cd ../client
         npm install
         npm run dev
 
-✨ Choose RadaPOS!
-The Pulse of Your Payments. Anywhere, Anytime.
+✨ Choose RadaPOS! The Pulse of Your Payments. Anywhere, Anytime.
