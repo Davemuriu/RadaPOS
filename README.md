@@ -1,6 +1,5 @@
-                                                                                                        🛒
-                                                                                                        RadaPOS Enterprise
-                                                                                                        Overview
+RadaPOS Enterprise
+Overview
 
 RadaPOS Enterprise is a robust, multi-tenant Point of Sale and Inventory Management System designed to streamline retail operations for businesses ranging from fixed retail stores to high-volume event pop-ups. 
 It provides a unified platform for Administrators, Vendors, and Cashiers to manage sales, inventory, and financial analytics in real-time.
@@ -13,92 +12,92 @@ Key Features:
 1. Core Point of Sale & Transaction Processing
    The central hub of the application, designed for speed and transactional integrity.
         
-        High-Performance Interface
-        Responsive, optimized cart system enabling cashiers to process high-volume transactions with minimal latency.
+   High-Performance Interface
+     Responsive, optimized cart system enabling cashiers to process high-volume transactions with minimal latency.
         
-        Smart Stock Validation
-        Real-time inventory checks prevent "stock-outs" by restricting sales of items exceeding available quantity.
+   Smart Stock Validation
+     Real-time inventory checks prevent "stock-outs" by restricting sales of items exceeding available quantity.
         
-        Flexible Payment Methods
-        Cash Payments: Instant recording of physical cash transactions with offline capability support.
+   Flexible Payment Methods
+     Cash Payments: Instant recording of physical cash transactions with offline capability support.
         
-        M-Pesa Integration (STK Push): Automated mobile payment processing with real-time callback handling for immediate verification.
+   M-Pesa Integration (STK Push): Automated mobile payment processing with real-time callback handling for immediate verification.
         
-        Split Payments: Advanced logic allowing a single transaction to be settled using a combination of Cash and M-Pesa.
+   Split Payments: Advanced logic allowing a single transaction to be settled using a combination of Cash and M-Pesa.
         
-        Digital Receipt Generation
-        Automatic generation of PDF receipts for every completed transaction, ensuring auditability and professional customer records.
+   Digital Receipt Generation
+     Automatic generation of PDF receipts for every completed transaction, ensuring auditability and professional customer records.
 
 2. Advanced Inventory & Product Management
 Comprehensive tools for vendors to maintain accurate stock records.
         
-        Product Lifecycle Management (CRUD)
-        Full capability to add, edit, categorize, and delete products.
+   Product Lifecycle Management (CRUD)
+     Full capability to add, edit, categorize, and delete products.
         
-        Bulk Data Import
-        Support for Excel/CSV file uploads, enabling vendors to import and update hundreds of inventory items simultaneously.
+   Bulk Data Import
+     Support for Excel/CSV file uploads, enabling vendors to import and update hundreds of inventory items simultaneously.
         
-        Low Stock Logic
-        Backend monitoring algorithms that track stock levels and trigger alerts when inventory falls below defined thresholds.
+   Low Stock Logic
+     Backend monitoring algorithms that track stock levels and trigger alerts when inventory falls below defined thresholds.
         
-        Promotional Logic
-        Capability to create and apply percentage-based discount codes at checkout to drive sales campaigns.
+   Promotional Logic
+     Capability to create and apply percentage-based discount codes at checkout to drive sales campaigns.
 
 3. Multi-Tenancy & User Management
 A secure, role-based architecture supporting distinct operational hierarchies.
         
-        Role-Based Access Control (RBAC).
-        Distinct interfaces and permission sets for three primary user roles:
+    Role-Based Access Control (RBAC).
+      Distinct interfaces and permission sets for three primary user roles:
                 Admins: Complete system oversight and platform management
                 Vendors: Business owners managing their specific inventory, staff, and finances
                 Cashiers: Front-line employees restricted to POS and sales operations
         
-        Strict Data Isolation
-        Architectural logic ensuring that Vendors and Cashiers can only access data relevant to their specific business entities
+    Strict Data Isolation
+      Architectural logic ensuring that Vendors and Cashiers can only access data relevant to their specific business entities
         
-        Staff Administration
-        Vendors possess full autonomy to hire or terminate cashiers
+    Staff Administration
+      Vendors possess full autonomy to hire or terminate cashiers
         
-        Login credentials are automatically generated and securely distributed via email
+    Login credentials are automatically generated and securely distributed via email
         
-        Vendor Payout Simulation
-        A digital ledger system allowing Vendors to manage wallet balances and simulate payments to suppliers or staff.
+    Vendor Payout Simulation
+      A digital ledger system allowing Vendors to manage wallet balances and simulate payments to suppliers or staff.
 
 4. Analytics & Financial Reporting
 Data-driven insights to monitor business health and performance.
         
-        Interactive Dashboards: Visual representations of sales trends, revenue performance, and transaction volume
+    Interactive Dashboards: Visual representations of sales trends, revenue performance, and transaction volume
         
-        Performance Metrics: Automatic identification of top-selling products to inform restocking decisions
+    Performance Metrics: Automatic identification of top-selling products to inform restocking decisions
         
-        Comprehensive Reporting: Generation of downloadable PDF reports containing detailed sales history for auditing purposes
+    Comprehensive Reporting: Generation of downloadable PDF reports containing detailed sales history for auditing purposes
         
-        Net Profit Calculation: Real-time computation of financial standing by analyzing Income versus Expenses (Payouts)
+    Net Profit Calculation: Real-time computation of financial standing by analyzing Income versus Expenses (Payouts)
 
 5. Security & System Intelligence
 Features designed to maintain system integrity and user awareness.
         
-        Audit Trail
-        A comprehensive security log tracking critical system actions, such as product deletion or staff changes, providing accountability for all sensitive operations.
+    Audit Trail
+      A comprehensive security log tracking critical system actions, such as product deletion or staff changes, providing accountability for all sensitive operations.
         
-        System Notifications
-        A real-time alert system notifying users of critical events, including low stock warnings and system-wide announcements
+    System Notifications
+      A real-time alert system notifying users of critical events, including low stock warnings and system-wide announcements
 
 6. Branding & User Experience
 A polished interface designed for modern retail environments.
         
-        Receipt Customization
-        Vendors can personalize digital receipts with specific business details and custom footers to enhance brand identity.
+    Receipt Customization
+      Vendors can personalize digital receipts with specific business details and custom footers to enhance brand identity.
 
-        Modern UI/UX
-        A refined user interface featuring a video-based landing page and dynamic theme toggling (Dark/Light mode) to suit various lighting environments.
+    Modern UI/UX
+      A refined user interface featuring a video-based landing page and dynamic theme toggling (Dark/Light mode) to suit various lighting environments.
 
 ⚙️ Technical Architecture
-        Frontend: React.js, Vite, Tailwind CSS
-        Backend: Python, Flask
-        Database: PostgreSQL / SQLAlchemy ORM
-        Authentication: JWT (JSON Web Tokens)
-        External Integrations: Safaricom Daraja API (M-Pesa), SendGrid (Email Services)
+      Frontend: React.js, Vite, Tailwind CSS
+      Backend: Python, Flask
+      Database: PostgreSQL / SQLAlchemy ORM
+      Authentication: JWT (JSON Web Tokens)
+      External Integrations: Safaricom Daraja API (M-Pesa), SendGrid (Email Services)
 
 Installation and Setup
 1. Clone the Repository
@@ -123,5 +122,5 @@ Database Initialization
         npm install
         npm run dev
 
-                                                                                                        ✨ Choose RadaPOS!
-                                                                                                        The Pulse of Your Payments. Anywhere, Anytime.
+✨ Choose RadaPOS!
+The Pulse of Your Payments. Anywhere, Anytime.
