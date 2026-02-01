@@ -15,8 +15,11 @@ Team Collaboration:
 Developed as a capstone project alongside:
 
  Rebecca (Internal Auditor & Financial Advisor) - She built the SaaS Admin Platform,designing the oversight logic that allows the Super Admin to manage subscriptions and users, ensuring the platform itself is viable as a business.
+ 
  Mohammed (Logistics) - He took charge of The Vendor Experience. Built the inventory management and the vendor portal.
+ 
  Wayne (BSc Electrical & Electronics Engineering)- He focused on The Cashier Experience. He applied that engineering discipline to ensure the checkout process is fast, responsive, and reliable.
+ 
  David (Hub Manager&Accountant) - Focused on the Core Architecture, Authentication, and Payments. Handled the M-Pesa integrations and the overall styling to ensure the math in the backend matches the beauty of the frontend.
 
 Key Features:
